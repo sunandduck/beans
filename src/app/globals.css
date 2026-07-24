@@ -1,0 +1,104 @@
+@import url("https://fonts.googleapis.cn/css2?family=Press+Start+2P&family=ZCOOL+KuaiLe&display=swap");
+@import "tailwindcss";
+
+:root {
+  --background: #FAF8F5;
+  --foreground: #2D2A26;
+  --primary: #E8734A;
+  --primary-hover: #D4623B;
+  --secondary: #7BC8B0;
+  --accent: #6BA3D6;
+  --muted: #7A756E;
+  --border: #E8E4DF;
+  --card: #FFFFFF;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+/* Pixel font class */
+.font-pixel {
+  font-family: "Press Start 2P", monospace;
+}
+
+/* Cute round font class */
+.font-cute {
+  font-family: "ZCOOL KuaiLe", system-ui, sans-serif;
+}
+
+/* Pixel art button style */
+.pixel-btn {
+  position: relative;
+  border: 3px solid var(--foreground);
+  box-shadow: 4px 4px 0 var(--foreground);
+  transition: all 0.1s steps(2);
+  image-rendering: pixelated;
+}
+
+.pixel-btn:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 var(--foreground);
+}
+
+.pixel-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 var(--foreground);
+}
+
+/* Pixel card style */
+.pixel-card {
+  border: 3px solid var(--border);
+  box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.08);
+  transition: all 0.15s steps(2);
+}
+
+.pixel-card:hover {
+  box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.12);
+}
+
+/* Pixel border decoration */
+.pixel-border {
+  border: 3px solid var(--border);
+  position: relative;
+}
+
+.pixel-border::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  right: -6px;
+  bottom: -6px;
+  border: 2px solid var(--border);
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+/* Checkerboard pattern for transparency */
+.checkerboard {
+  background-image: 
+    linear-gradient(45deg, #e0e0e0 25%, transparent 25%),
+    linear-gradient(-45deg, #e0e0e0 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #e0e0e0 75%),
+    linear-gradient(-45deg, transparent 75%, #e0e0e0 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+}
+
+/* Pixel loading animation */
+@keyframes pixel-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.pixel-loading {
+  animation: pixel-blink 0.8s steps(2) infinite;
+}
+
+/* Pixel step transition */
+.pixel-transition {
+  transition-timing-function: steps(4);
+}

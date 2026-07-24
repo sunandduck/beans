@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>拼豆图纸生成器</title>
+  <link rel="preconnect" href="https://fonts.googleapis.cn">
+  <link rel="preconnect" href="https://fonts.gstatic.cn" crossorigin>
+  <link href="https://fonts.googleapis.cn/css2?family=Press+Start+2P&family=ZCOOL+KuaiLe&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    :root {
+      --bg: #FAF8F5;
+      --primary: #E8734A;
+      --primary-hover: #D4623B;
+      --secondary: #7BC8B0;
+      --accent: #6BA3D6;
+      --text: #2D2A26;
+      --text-muted: #7A756E;
+      --card-bg: #FFFFFF;
+      --border: #E8E4DF;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 20px;
+    }
+    
+    .font-pixel { font-family: 'Press Start 2P', monospace; }
+    .font-cute { font-family: 'ZCOOL KuaiLe', cursive; }
+    
+    .container { max-width: 1200px; margin: 0 auto; }
+    
+    /* Header */
+    .header {
+      text-align: center;
+      padding: 30px 20px;
+      margin-bottom: 30px;
+    }
+    
+    .header h1 {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 24px;
+      color: var(--primary);
+      margin-bottom: 10px;
+      text-shadow: 3px 3px 0 rgba(232, 115, 74, 0.2);
+    }
+    
+    .header p {
+      font-family: 'ZCOOL KuaiLe', cursive;
+      font-size: 18px;
+      color: var(--text-muted);
+    }
+    
+    /* Pixel decorations */
+    .pixel-deco {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 15px;
+    }
+    
+    .pixel-deco span {
+      width: 12px;
+      height: 12px;
+      background: var(--primary);
+    }
+    
+    .pixel-deco span:nth-child(2) { background: var(--secondary); }
+    .pixel-deco span:nth-child(3) { background: var(--accent); }
+    .pixel-deco span:nth-child(4) { background: #FFD700; }
+    .pixel-deco span:nth-child(5) { background: var(--primary); }
+    
+    /* Cards */
+    .card {
+      background: var(--card-bg);
+      border: 3px solid var(--border);
+      box-shadow: 6px 6px 0 var(--border);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    
+    .card-title {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 14px;
+      color: var(--primary);
+      margin-bottom: 15px;
+      padding-bottom: 10px;
+      border-bottom: 2px dashed var(--border);
+    }
+    
+    /* Upload area */
+    .upload-area {
+      border: 3px dashed var(--border);
+      padding: 40px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s steps(3);
+    }
+    
+    .upload-area:hover {
+      border-color: var(--primary);
+      background: rgba(232, 115, 74, 0.05);
+    }
+    
+    .upload-icon {
+      width: 60px;
+      height: 60px;
+      margin: 0 auto 15px;
+      background: var(--primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .upload-icon svg { width: 30px; height: 30px; color: white; }
+    
+    .upload-text {
+      font-family: 'ZCOOL KuaiLe', cursive;
+      font-size: 18px;
+      color: var(--text-muted);
+    }
+    
+    /* Buttons */
+    .pixel-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 24px;
+      font-family: 'ZCOOL KuaiLe', cursive;
+      font-size: 18px;
+      color: white;
+      background: var(--primary);
+      border: none;
+      cursor: pointer;
+      box-shadow: 4px 4px 0 var(--border);
+      transition: all 0.1s steps(2);
+    }
+    
+    .pixel-btn:hover {
+      transform: translate(-2px, -2px);
+      box-shadow: 6px 6px 0 var(--border);
+    }
+    
+    .pixel-btn:active {
+      transform: translate(2px, 2px);
+      box-shadow: 2px 2px 0 var(--border);
+    }
+    
+    .pixel-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    .pixel-btn-secondary {
+      background: var(--secondary);
+    }
+    
+    /* Settings panel */
+    .settings-panel {
+      background: #FFF8E7;
+      border: 2px solid #FFD700;
+      padding: 15px;
+      margin-bottom: 20px;
+    }
+    
+    .settings-title {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 10px;
+      color: var(--text);
+      margin-bottom: 10px;
+    }
+    
+    .settings-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 10px;
+      align-items: center;
+    }
+    
+    .settings-row label {
+      font-family: 'ZCOOL KuaiLe', cursive;
+      font-size: 14px;
+      min-width: 100px;
+    }
+    
+    .settings-row input, .settings-row select {
+      flex: 1;
+      padding: 8px 12px;
+      border: 2px solid var(--border);
+      font-family: 'ZCOOL KuaiLe', cursive;
+      font-size: 14px;
+    }
+    
+    /* Image preview */
+    .image-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    
+    @media (max-width: 768px) {
+      .image-grid { grid-template-columns: 1fr; }
+    }
+    
+    .image-box {
+      text-align: center;
+    }
+    
+    .image-box img {
+      max-width: 100%;
+      max-height: 300px;
+      border: 3px solid var(--border);
+      box-shadow: 4px 4px 0 var(--border);
+    }
+    
+    .image-label {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 10px;
+    }
+    
+    /* Pattern preview */
+    .pattern-container {
+      text-align: center;
+      overflow-x: auto;
+    }
+    
+    .pattern-container canvas {
+      border: 3px solid var(--border);
+      box-shadow: 4px 4px 0 var(--border);
+      max-width: 100%;
+      height: auto;
+    }
+    
+    /* Color list */
+    .color-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 10px;
+    }
+    
+    .color-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px;
+      background: var(--bg);
+      border: 2px solid var(--border);
+    }
+    
+    .color-swatch {
+      width: 24px;
+      height: 24px;
+      border: 2px solid var(--text);
+    }
+    
+    .color-info {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 8px;
+      line-height: 1.5;
+    }
+    
+    /* Loading */
+    .loading {
+      text-align: center;
+      padding: 40px;
+    }
+    
+    .loading-spinner {
+      width: 40px;
+      height: 40px;
+      margin: 0 auto 15px;
+      background: var(--primary);
+      animation: pixel-blink 0.8s steps(2) infinite;
+    }
+    
+    @keyframes pixel-blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+    
+    .hidden { display: none; }
+    
+    /* Footer */
+    .footer {
+      text-align: center;
+      padding: 20px;
+      margin-top: 40px;
+    }
+    
+    .footer p {
+      font-family: 'ZCOOL KuaiLe', cursive;
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <h1>拼豆图纸生成器</h1>
+      <p>上传照片，生成专属拼豆图纸</p>
+      <div class="pixel-deco">
+        <span></span><span></span><span></span><span></span><span></span>
+      </div>
+    </div>
+    
+    <!-- Settings Panel -->
+    <div class="settings-panel">
+      <div class="settings-title">⚙️ AI设置（可选）</div>
+      <div class="settings-row">
+        <label>AI服务：</label>
+        <select id="aiService">
+          <option value="none">不使用AI（仅像素化）</option>
+          <option value="stability">Stability AI</option>
+          <option value="custom">自定义API</option>
+        </select>
+      </div>
+      <div class="settings-row" id="apiKeyRow" style="display:none;">
+        <label>API密钥：</label>
+        <input type="password" id="apiKey" placeholder="输入你的API密钥">
+      </div>
+      <div class="settings-row" id="apiUrlRow" style="display:none;">
+        <label>API地址：</label>
+        <input type="text" id="apiUrl" placeholder="https://api.example.com/generate">
+      </div>
+      <div style="font-size: 12px; color: var(--text-muted); margin-top: 10px;">
+        💡 不使用AI：直接将原图像素化为拼豆图纸<br>
+        💡 使用AI：先AI重构主体，再像素化（需要API密钥）
+      </div>
+    </div>
+    
+    <!-- Upload Section -->
+    <div class="card" id="uploadCard">
+      <div class="card-title">第1步：上传照片</div>
+      <div class="upload-area" id="uploadArea">
+        <div class="upload-icon">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+          </svg>
+        </div>
+        <div class="upload-text">点击或拖拽上传照片</div>
+        <input type="file" id="fileInput" accept="image/*" style="display:none;">
+      </div>
+    </div>
+    
+    <!-- Preview Section -->
+    <div class="card hidden" id="previewCard">
+      <div class="card-title">第2步：预览与生成</div>
+      <div class="image-grid">
+        <div class="image-box">
+          <img id="originalImage" alt="原图">
+          <div class="image-label">原图</div>
+        </div>
+        <div class="image-box" id="aiResultBox" style="display:none;">
+          <img id="aiResultImage" alt="AI重构">
+          <div class="image-label">AI重构</div>
+        </div>
+      </div>
+      <div style="text-align: center; margin-top: 20px;">
+        <button class="pixel-btn" id="generateBtn">开始生成拼豆图纸</button>
+      </div>
+    </div>
+    
+    <!-- Loading -->
+    <div class="loading hidden" id="loadingSection">
+      <div class="loading-spinner"></div>
+      <div class="font-cute" style="font-size: 18px;">处理中...</div>
+    </div>
+    
+    <!-- Result Section -->
+    <div class="card hidden" id="resultCard">
+      <div class="card-title">拼豆图纸</div>
+      <div class="pattern-container">
+        <canvas id="patternCanvas"></canvas>
+      </div>
+      <div style="text-align: center; margin-top: 15px;">
+        <span class="font-pixel" style="font-size: 10px; color: var(--text-muted);" id="patternSize"></span>
+      </div>
+    </div>
+    
+    <!-- Color List -->
+    <div class="card hidden" id="colorListCard">
+      <div class="card-title">色号清单</div>
+      <div class="color-list" id="colorList"></div>
+      <div style="text-align: center; margin-top: 15px;">
+        <span class="font-pixel" style="font-size: 10px; color: var(--text-muted);" id="totalCount"></span>
+      </div>
+    </div>
+    
+    <!-- Download Buttons -->
+    <div class="hidden" id="downloadSection" style="text-align: center; margin-top: 20px;">
+      <button class="pixel-btn" id="downloadPatternBtn" style="margin-right: 10px;">下载图纸</button>
+      <button class="pixel-btn pixel-btn-secondary" id="downloadColorListBtn">下载色号清单</button>
+    </div>
+    
+    <!-- Restart -->
+    <div class="hidden" id="restartSection" style="text-align: center; margin-top: 20px;">
+      <button class="pixel-btn" id="restartBtn">重新开始</button>
+    </div>
+    
+    <!-- Footer -->
+    <div class="footer">
+      <div class="pixel-deco" style="margin-bottom: 15px;">
+        <span></span><span></span><span></span><span></span><span></span>
+      </div>
+      <p>拼豆图纸生成器 - 本地版</p>
+    </div>
+  </div>
+  
+  <script>
+    // MARD Color Palette
+    const MARD_PALETTE = [
+      { code: "A1", name: "白色", hex: "#FFFFFF" },
+      { code: "A2", name: "乳白", hex: "#FFF8E7" },
+      { code: "A3", name: "米色", hex: "#F5E6C8" },
+      { code: "A4", name: "浅黄", hex: "#FFF44F" },
+      { code: "A5", name: "黄色", hex: "#FFD700" },
+      { code: "A6", name: "深黄", hex: "#E6B800" },
+      { code: "A7", name: "橙黄", hex: "#FFA500" },
+      { code: "A8", name: "橙色", hex: "#FF8C00" },
+      { code: "A9", name: "深橙", hex: "#E67300" },
+      { code: "B1", name: "浅红", hex: "#FFB6C1" },
+      { code: "B2", name: "粉红", hex: "#FF69B4" },
+      { code: "B3", name: "红色", hex: "#FF0000" },
+      { code: "B4", name: "深红", hex: "#CC0000" },
+      { code: "B5", name: "酒红", hex: "#8B0000" },
+      { code: "C1", name: "浅粉", hex: "#FFE4E1" },
+      { code: "C2", name: "玫瑰", hex: "#FF007F" },
+      { code: "C3", name: "紫红", hex: "#C71585" },
+      { code: "C4", name: "紫色", hex: "#8B008B" },
+      { code: "C5", name: "深紫", hex: "#4B0082" },
+      { code: "D1", name: "浅蓝", hex: "#ADD8E6" },
+      { code: "D2", name: "天蓝", hex: "#87CEEB" },
+      { code: "D3", name: "蓝色", hex: "#0000FF" },
+      { code: "D4", name: "深蓝", hex: "#00008B" },
+      { code: "D5", name: "藏青", hex: "#000080" },
+      { code: "E1", name: "浅绿", hex: "#90EE90" },
+      { code: "E2", name: "绿色", hex: "#00FF00" },
+      { code: "E3", name: "深绿", hex: "#008000" },
+      { code: "E4", name: "墨绿", hex: "#006400" },
+      { code: "E5", name: "橄榄", hex: "#6B8E23" },
+      { code: "F1", name: "浅棕", hex: "#DEB887" },
+      { code: "F2", name: "棕色", hex: "#8B4513" },
+      { code: "F3", name: "深棕", hex: "#654321" },
+      { code: "F4", name: "黑色", hex: "#000000" },
+      { code: "F5", name: "灰色", hex: "#808080" },
+      { code: "F6", name: "浅灰", hex: "#D3D3D3" },
+      { code: "F7", name: "深灰", hex: "#404040" },
+      { code: "F8", name: "肉色", hex: "#FFDAB9" },
+      { code: "F9", name: "肤色", hex: "#F5C6A0" },
+    ];
+    
+    // State
+    let originalImageData = null;
+    let processedImageData = null;
+    let pattern = null;
+    
+    // DOM elements
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('fileInput');
+    const uploadCard = document.getElementById('uploadCard');
+    const previewCard = document.getElementById('previewCard');
+    const originalImage = document.getElementById('originalImage');
+    const aiResultBox = document.getElementById('aiResultBox');
+    const aiResultImage = document.getElementById('aiResultImage');
+    const generateBtn = document.getElementById('generateBtn');
+    const loadingSection = document.getElementById('loadingSection');
+    const resultCard = document.getElementById('resultCard');
+    const colorListCard = document.getElementById('colorListCard');
+    const downloadSection = document.getElementById('downloadSection');
+    const restartSection = document.getElementById('restartSection');
+    const patternCanvas = document.getElementById('patternCanvas');
+    const patternSize = document.getElementById('patternSize');
+    const colorList = document.getElementById('colorList');
+    const totalCount = document.getElementById('totalCount');
+    
+    // Settings
+    const aiService = document.getElementById('aiService');
+    const apiKeyRow = document.getElementById('apiKeyRow');
+    const apiUrlRow = document.getElementById('apiUrlRow');
+    const apiKey = document.getElementById('apiKey');
+    const apiUrl = document.getElementById('apiUrl');
+    
+    // Load saved settings
+    apiKey.value = localStorage.getItem('apiKey') || '';
+    apiUrl.value = localStorage.getItem('apiUrl') || '';
+    aiService.value = localStorage.getItem('aiService') || 'none';
+    
+    // Save settings on change
+    aiService.addEventListener('change', () => {
+      localStorage.setItem('aiService', aiService.value);
+      updateSettingsUI();
+    });
+    
+    apiKey.addEventListener('change', () => {
+      localStorage.setItem('apiKey', apiKey.value);
+    });
+    
+    apiUrl.addEventListener('change', () => {
+      localStorage.setItem('apiUrl', apiUrl.value);
+    });
+    
+    function updateSettingsUI() {
+      const service = aiService.value;
+      apiKeyRow.style.display = service !== 'none' ? 'flex' : 'none';
+      apiUrlRow.style.display = service === 'custom' ? 'flex' : 'none';
+    }
+    
+    updateSettingsUI();
+    
+    // Upload handling
+    uploadArea.addEventListener('click', () => fileInput.click());
+    
+    uploadArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      uploadArea.style.borderColor = 'var(--primary)';
+    });
+    
+    uploadArea.addEventListener('dragleave', () => {
+      uploadArea.style.borderColor = 'var(--border)';
+    });
+    
+    uploadArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadArea.style.borderColor = 'var(--border)';
+      const file = e.dataTransfer.files[0];
+      if (file && file.type.startsWith('image/')) {
+        handleFile(file);
+      }
+    });
+    
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) handleFile(file);
+    });
+    
+    function handleFile(file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        originalImageData = e.target.result;
+        originalImage.src = originalImageData;
+        uploadCard.classList.add('hidden');
+        previewCard.classList.remove('hidden');
+      };
+      reader.readAsDataURL(file);
+    }
+    
+    // Generate button
+    generateBtn.addEventListener('click', async () => {
+      generateBtn.disabled = true;
+      loadingSection.classList.remove('hidden');
+      
+      try {
+        let imageToProcess = originalImageData;
+        
+        // AI reconstruction if enabled
+        if (aiService.value !== 'none') {
+          imageToProcess = await reconstructWithAI(originalImageData);
+          aiResultImage.src = imageToProcess;
+          aiResultBox.style.display = 'block';
+        }
+        
+        // Process into perler pattern
+        processedImageData = imageToProcess;
+        await processPattern(imageToProcess);
+        
+        // Show results
+        loadingSection.classList.add('hidden');
+        previewCard.classList.add('hidden');
+        resultCard.classList.remove('hidden');
+        colorListCard.classList.remove('hidden');
+        downloadSection.classList.remove('hidden');
+        restartSection.classList.remove('hidden');
+      } catch (error) {
+        alert('生成失败：' + error.message);
+        loadingSection.classList.add('hidden');
+        generateBtn.disabled = false;
+      }
+    });
+    
+    // AI Reconstruction
+    async function reconstructWithAI(imageData) {
+      const service = aiService.value;
+      const key = apiKey.value;
+      
+      if (!key) {
+        throw new Error('请先在设置中填写API密钥');
+      }
+      
+      if (service === 'stability') {
+        return await reconstructWithStability(imageData, key);
+      } else if (service === 'custom') {
+        return await reconstructWithCustomAPI(imageData, key, apiUrl.value);
+      }
+      
+      return imageData;
+    }
+    
+    async function reconstructWithStability(imageData, apiKey) {
+      // Convert data URL to blob
+      const response = await fetch(imageData);
+      const blob = await response.blob();
+      
+      const formData = new FormData();
+      formData.append('init_image', blob);
+      formData.append('width', '512');
+      formData.append('height', '512');
+      formData.append('prompt', 'Q版卡通风格像素画，可爱的人物或物品，正面视角，纯白背景，扁平化设计，8-12种颜色，清晰的色块边界，适合拼豆图纸');
+      formData.append('output_format', 'png');
+      
+      const aiResponse = await fetch(
+        'https://api.stability.ai/v2beta/stable-image/edit/sd3',
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Accept': 'image/*'
+          },
+          body: formData
+        }
+      );
+      
+      if (!aiResponse.ok) {
+        const error = await aiResponse.json();
+        throw new Error(error.message || 'AI重构失败');
+      }
+      
+      const imageBlob = await aiResponse.blob();
+      return await blobToDataURL(imageBlob);
+    }
+    
+    async function reconstructWithCustomAPI(imageData, apiKey, url) {
+      if (!url) throw new Error('请填写API地址');
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          image: imageData,
+          prompt: 'Q版卡通风格像素画，可爱的人物或物品，正面视角，纯白背景，扁平化设计，8-12种颜色，清晰的色块边界，适合拼豆图纸'
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('AI重构失败');
+      }
+      
+      const data = await response.json();
+      return data.image || data.imageUrl;
+    }
+    
+    function blobToDataURL(blob) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    }
+    
+    // Process into perler pattern
+    async function processPattern(imageData) {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          const size = 50;
+          const canvas = document.createElement('canvas');
+          canvas.width = size;
+          canvas.height = size;
+          const ctx = canvas.getContext('2d');
+          
+          // Draw image scaled down
+          const scale = Math.min(size / img.width, size / img.height);
+          const w = img.width * scale;
+          const h = img.height * scale;
+          const x = (size - w) / 2;
+          const y = (size - h) / 2;
+          
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(0, 0, size, size);
+          ctx.drawImage(img, x, y, w, h);
+          
+          const imageDataObj = ctx.getImageData(0, 0, size, size);
+          const beads = [];
+          const colorCount = new Map();
+          
+          // Detect background color from edges
+          const edgeColors = [];
+          for (let i = 0; i < size; i++) {
+            edgeColors.push(getPixel(imageDataObj, i, 0));
+            edgeColors.push(getPixel(imageDataObj, i, size - 1));
+            edgeColors.push(getPixel(imageDataObj, 0, i));
+            edgeColors.push(getPixel(imageDataObj, size - 1, i));
+          }
+          const bgColor = detectBackgroundColor(edgeColors);
+          
+          for (let y = 0; y < size; y++) {
+            for (let x = 0; x < size; x++) {
+              const pixel = getPixel(imageDataObj, x, y);
+              
+              // Check if pixel is background
+              const distance = colorDistance(pixel, bgColor);
+              if (distance < 40) {
+                beads.push({ row: y, col: x, isEmpty: true });
+              } else {
+                const color = findNearestColor(pixel.r, pixel.g, pixel.b);
+                beads.push({ row: y, col: x, color, isEmpty: false });
+                colorCount.set(color.code, (colorCount.get(color.code) || 0) + 1);
+              }
+            }
+          }
+          
+          const colorStats = Array.from(colorCount.entries())
+            .map(([code, count]) => ({
+              color: MARD_PALETTE.find(c => c.code === code),
+              count
+            }))
+            .sort((a, b) => b.count - a.count);
+          
+          pattern = { beads, width: size, height: size, colorStats };
+          
+          renderPattern();
+          renderColorList();
+          patternSize.textContent = `尺寸：${size} x ${size}`;
+          totalCount.textContent = `总计：${colorStats.reduce((sum, s) => sum + s.count, 0)} 颗拼豆`;
+          
+          resolve();
+        };
+        img.src = imageData;
+      });
+    }
+    
+    function getPixel(imageData, x, y) {
+      const i = (y * imageData.width + x) * 4;
+      return {
+        r: imageData.data[i],
+        g: imageData.data[i + 1],
+        b: imageData.data[i + 2],
+        a: imageData.data[i + 3]
+      };
+    }
+    
+    function detectBackgroundColor(edgeColors) {
+      const colorMap = new Map();
+      for (const color of edgeColors) {
+        const key = `${Math.round(color.r / 20) * 20},${Math.round(color.g / 20) * 20},${Math.round(color.b / 20) * 20}`;
+        colorMap.set(key, (colorMap.get(key) || 0) + 1);
+      }
+      
+      let maxCount = 0;
+      let bgColor = { r: 255, g: 255, b: 255 };
+      for (const [key, count] of colorMap.entries()) {
+        if (count > maxCount) {
+          maxCount = count;
+          const [r, g, b] = key.split(',').map(Number);
+          bgColor = { r, g, b };
+        }
+      }
+      return bgColor;
+    }
+    
+    function colorDistance(c1, c2) {
+      const dr = c1.r - c2.r;
+      const dg = c1.g - c2.g;
+      const db = c1.b - c2.b;
+      return Math.sqrt(dr * dr + dg * dg + db * db);
+    }
+    
+    function findNearestColor(r, g, b) {
+      let minDistance = Infinity;
+      let nearest = MARD_PALETTE[0];
+      
+      for (const color of MARD_PALETTE) {
+        const rgb = hexToRgb(color.hex);
+        const dr = r - rgb.r;
+        const dg = g - rgb.g;
+        const db = b - rgb.b;
+        const distance = 2 * dr * dr + 4 * dg * dg + 3 * db * db;
+        
+        if (distance < minDistance) {
+          minDistance = distance;
+          nearest = color;
+        }
+      }
+      
+      return nearest;
+    }
+    
+    function hexToRgb(hex) {
+      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+      return result ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16)
+      } : { r: 0, g: 0, b: 0 };
+    }
+    
+    function renderPattern() {
+      const beadSize = Math.min(16, Math.floor(600 / pattern.width));
+      const canvas = patternCanvas;
+      canvas.width = pattern.width * beadSize;
+      canvas.height = pattern.height * beadSize;
+      const ctx = canvas.getContext('2d');
+      
+      // Draw beads
+      for (const bead of pattern.beads) {
+        const x = bead.col * beadSize;
+        const y = bead.row * beadSize;
+        
+        if (bead.isEmpty) {
+          ctx.fillStyle = '#F5F5F5';
+        } else {
+          ctx.fillStyle = bead.color.hex;
+        }
+        ctx.fillRect(x, y, beadSize, beadSize);
+        
+        // Grid
+        ctx.strokeStyle = '#E0E0E0';
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(x, y, beadSize, beadSize);
+      }
+    }
+    
+    function renderColorList() {
+      colorList.innerHTML = '';
+      for (const stat of pattern.colorStats) {
+        const item = document.createElement('div');
+        item.className = 'color-item';
+        item.innerHTML = `
+          <div class="color-swatch" style="background: ${stat.color.hex}"></div>
+          <div class="color-info">
+            <div>${stat.color.code}</div>
+            <div>${stat.count}颗</div>
+          </div>
+        `;
+        colorList.appendChild(item);
+      }
+    }
+    
+    // Download functions
+    document.getElementById('downloadPatternBtn').addEventListener('click', () => {
+      const link = document.createElement('a');
+      link.download = '拼豆图纸.png';
+      link.href = patternCanvas.toDataURL();
+      link.click();
+    });
+    
+    document.getElementById('downloadColorListBtn').addEventListener('click', () => {
+      const csv = ['色号,颜色,数量'];
+      for (const stat of pattern.colorStats) {
+        csv.push(`${stat.color.code},${stat.color.name},${stat.count}`);
+      }
+      const blob = new Blob(['\uFEFF' + csv.join('\n')], { type: 'text/csv;charset=utf-8' });
+      const link = document.createElement('a');
+      link.download = '色号清单.csv';
+      link.href = URL.createObjectURL(blob);
+      link.click();
+    });
+    
+    // Restart
+    document.getElementById('restartBtn').addEventListener('click', () => {
+      location.reload();
+    });
+  </script>
+</body>
+</html>

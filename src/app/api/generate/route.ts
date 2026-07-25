@@ -1,7 +1,135 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ImageGenerationClient, Config, HeaderUtils } from 'coze-coding-dev-sdk';
 
 export const maxDuration = 300;
+
+// 火山引擎即梦 AI API 配置
+const JIMENG_ENDPOINT = "https://visual.volcengineapi.com";
+const JIMENG_REGION = "cn-north-1";
+const JIMENG_SERVICE = "cv";
+
+// 火山引擎签名生成
+function sign(key: string | Buffer, msg: string): Buffer {
+  const crypto = require("crypto");
+  return crypto.createHmac("sha256", key).update(msg).digest();
+}
+
+function getSignatureKey(secretKey: string, dateStamp: string, region: string, service: string): Buffer {
+  const kDate = sign(secretKey, dateStamp);
+  const kRegion = sign(kDate, region);
+  const kService = sign(kRegion, service);
+  const kSigning = sign(kService, "request");
+  return kSigning;
+}
+
+async function submitJimengTask(imageUrl: string, prompt: string, accessKey: string, secretKey: string): Promise<{ success: boolean; taskId?: string; error?: string }> {
+  const crypto = require("crypto");
+  
+  const now = new Date();
+  const dateStamp = now.toISOString().slice(0, 10).replace(/-/g, "");
+  const amzDate = now.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+  
+  const body = JSON.stringify({
+    req_key: "jimeng_i2i_v40",
+    image_urls: [imageUrl],
+    prompt: prompt,
+    width: 512,
+    height: 512,
+  });
+
+  const bodyHash = crypto.createHash("sha256").update(body).digest("hex");
+  
+  const canonicalHeaders = `content-type:application/json\nhost:visual.volcengineapi.com\nx-date:${amzDate}\n`;
+  const signedHeaders = "content-type;host;x-date";
+  const canonicalRequest = `POST\n/\nAction=CVSync2AsyncSubmitTask&Version=2022-08-31\n${canonicalHeaders}\n${signedHeaders}\n${bodyHash}`;
+  
+  const credentialScope = `${dateStamp}/${JIMENG_REGION}/${JIMENG_SERVICE}/request`;
+  const stringToSign = `HMAC-SHA256\n${amzDate}\n${credentialScope}\n${crypto.createHash("sha256").update(canonicalRequest).digest("hex")}`;
+  
+  const signingKey = getSignatureKey(secretKey, dateStamp, JIMENG_REGION, JIMENG_SERVICE);
+  const signature = crypto.createHmac("sha256", signingKey).update(stringToSign).digest("hex");
+  
+  const authorization = `HMAC-SHA256 Credential=${accessKey}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+
+  const response = await fetch(
+    `${JIMENG_ENDPOINT}/?Action=CVSync2AsyncSubmitTask&Version=2022-08-31`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Host": "visual.volcengineapi.com",
+        "X-Date": amzDate,
+        "Authorization": authorization,
+      },
+      body,
+    }
+  );
+
+  const result = await response.json();
+  
+  if (result.code !== 10000) {
+    return { success: false, error: `提交任务失败：${result.message}` };
+  }
+
+  return { success: true, taskId: result.data?.task_id };
+}
+
+async function pollJimengResult(taskId: string, accessKey: string, secretKey: string, maxAttempts = 60): Promise<string | null> {
+  const crypto = require("crypto");
+  
+  for (let i = 0; i < maxAttempts; i++) {
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    const now = new Date();
+    const dateStamp = now.toISOString().slice(0, 10).replace(/-/g, "");
+    const amzDate = now.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+    
+    const body = JSON.stringify({
+      req_key: "jimeng_i2i_v40",
+      task_id: taskId,
+    });
+
+    const bodyHash = crypto.createHash("sha256").update(body).digest("hex");
+    
+    const canonicalHeaders = `content-type:application/json\nhost:visual.volcengineapi.com\nx-date:${amzDate}\n`;
+    const signedHeaders = "content-type;host;x-date";
+    const canonicalRequest = `POST\n/\nAction=CVSync2AsyncGetResult&Version=2022-08-31\n${canonicalHeaders}\n${signedHeaders}\n${bodyHash}`;
+    
+    const credentialScope = `${dateStamp}/${JIMENG_REGION}/${JIMENG_SERVICE}/request`;
+    const stringToSign = `HMAC-SHA256\n${amzDate}\n${credentialScope}\n${crypto.createHash("sha256").update(canonicalRequest).digest("hex")}`;
+    
+    const signingKey = getSignatureKey(secretKey, dateStamp, JIMENG_REGION, JIMENG_SERVICE);
+    const signature = crypto.createHmac("sha256", signingKey).update(stringToSign).digest("hex");
+    
+    const authorization = `HMAC-SHA256 Credential=${accessKey}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+
+    const response = await fetch(
+      `${JIMENG_ENDPOINT}/?Action=CVSync2AsyncGetResult&Version=2022-08-31`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Host": "visual.volcengineapi.com",
+          "X-Date": amzDate,
+          "Authorization": authorization,
+        },
+        body,
+      }
+    );
+
+    const result = await response.json();
+    
+    if (result.code === 10000 && result.data?.status === "done") {
+      return result.data?.image_urls?.[0] || null;
+    }
+    
+    if (result.code === 10000 && result.data?.status === "failed") {
+      console.error("[GenerateAPI] 任务失败:", result);
+      return null;
+    }
+  }
+  
+  return null;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,18 +140,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing imageUrl' }, { status: 400 });
     }
 
-    // Extract forward headers for proper request tracing
-    const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
-    const config = new Config();
-    const client = new ImageGenerationClient(config, customHeaders);
+    const accessKey = process.env.JIMENG_ACCESS_KEY;
+    const secretKey = process.env.JIMENG_SECRET_KEY;
+
+    if (!accessKey || !secretKey) {
+      return NextResponse.json(
+        { error: "AI 服务未配置，请联系管理员设置 JIMENG_ACCESS_KEY 和 JIMENG_SECRET_KEY" },
+        { status: 503 }
+      );
+    }
 
     // Build a comprehensive prompt for low-pixel cartoon style
-    // 目标：生成 Q 版大头小身体风格，专为拼豆图纸优化（可拼性 > 还原度）
-    // 每个拼豆格子对应 4×4 像素，所以 AI 的每个色块至少 4×4 像素
     const basePrompt = userPrompt || 
       `【强制要求】生成像素风格图像，专为拼豆手工制作设计：
       
-      核心风格：Q版大头小身体（chibi 风格），专为拼豆图纸设计
+      核心风格：Q 版大头小身体（chibi 风格），专为拼豆图纸设计
       
       设计原则（拼豆可拼性 > 还原度）：
       - 只抓核心要素：脸型轮廓、发型、眼睛、嘴巴、主要服装色块
@@ -55,33 +186,35 @@ export async function POST(request: NextRequest) {
       - 禁止超过 8 种颜色
       - 禁止复杂背景
       
-      参考风格：Q版表情包、chibi 贴纸、简单像素头像`;
+      参考风格：Q 版表情包、chibi 贴纸、简单像素头像`;
 
     const fullPrompt = subjectDesc 
       ? `${basePrompt}\n\nSubject description: ${subjectDesc}`
       : basePrompt;
 
-    const response = await client.generate({
-      prompt: fullPrompt,
-      image: imageUrl,
-      responseFormat: 'b64_json',
-      size: '256x256',
-    });
+    console.log("[GenerateAPI] 开始 AI 重构:", { imageUrl });
 
-    const helper = client.getResponseHelper(response);
-
-    if (!helper.success) {
-      console.error('Image generation error:', helper.errorMessages);
-      return NextResponse.json({ 
-        error: helper.errorMessages[0] || 'Generation failed' 
-      }, { status: 500 });
+    // 提交任务
+    const submitResult = await submitJimengTask(imageUrl, fullPrompt, accessKey, secretKey);
+    
+    if (!submitResult.success) {
+      throw new Error(submitResult.error || "提交任务失败");
     }
 
-    if (helper.imageB64List.length === 0) {
-      return NextResponse.json({ error: 'No image generated' }, { status: 500 });
+    const taskId = submitResult.taskId;
+    if (!taskId) {
+      throw new Error("提交任务失败：未获取到 task_id");
+    }
+    console.log("[GenerateAPI] 任务已提交:", taskId);
+
+    // 轮询获取结果
+    const resultImageUrl = await pollJimengResult(taskId, accessKey, secretKey);
+    
+    if (!resultImageUrl) {
+      throw new Error("AI 重构失败：未获取到结果");
     }
 
-    const resultImageUrl = `data:image/png;base64,${helper.imageB64List[0]}`;
+    console.log("[GenerateAPI] AI 重构完成:", resultImageUrl);
 
     return NextResponse.json({ 
       success: true, 
@@ -90,6 +223,8 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Generate API error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ 
+      error: error instanceof Error ? error.message : 'Internal server error' 
+    }, { status: 500 });
   }
 }

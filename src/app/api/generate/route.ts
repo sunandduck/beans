@@ -29,7 +29,7 @@ async function submitJimengTask(imageUrl: string, prompt: string, accessKey: str
   const amzDate = now.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
   
   const body = JSON.stringify({
-    req_key: "jimeng_i2i_v40",
+    req_key: "jimeng_i2i_v30",
     image_urls: [imageUrl],
     prompt: prompt,
     width: 512,
@@ -84,7 +84,7 @@ async function pollJimengResult(taskId: string, accessKey: string, secretKey: st
     const amzDate = now.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
     
     const body = JSON.stringify({
-      req_key: "jimeng_i2i_v40",
+      req_key: "jimeng_i2i_v30",
       task_id: taskId,
     });
 

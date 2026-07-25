@@ -98,13 +98,14 @@ async function generateCartoon(imageUrl: string, description: string, style: str
   const prompt = `Q 版卡通风格，大头小身体，纯色块，简洁线条，可爱风格，${description}`;
   
   const body = JSON.stringify({
-    req_key: "i2i_xl_sft",
+    req_key: "jimeng_t2i_v40",
     image_urls: [imageUrl],
     prompt: prompt,
     seed: -1,
     scale: 7.0,
     ddim_steps: 20,
     return_url: true,
+    force_single: true,
   });
 
   const bodyHash = crypto.createHash("sha256").update(body).digest("hex");

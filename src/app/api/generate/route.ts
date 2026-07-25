@@ -146,15 +146,15 @@ async function generateCartoon(imageUrl: string, description: string, style: str
   if (imageUrl.startsWith("data:")) {
     // base64 数据：提取 base64 部分
     const base64Data = imageUrl.split(",")[1];
-    reqKey = "img2img_ai_doodle_dreamina";
+    reqKey = "i2i_xl_sft";
     body = JSON.stringify({
       req_key: reqKey,
       binary_data_base64: [base64Data],
       prompt: prompt,
     });
   } else {
-    // URL 数据：使用图生图模型
-    reqKey = "img2img_ai_doodle_dreamina";
+    // URL 数据：使用智能绘图图生图模型
+    reqKey = "i2i_xl_sft";
     body = JSON.stringify({
       req_key: reqKey,
       image_urls: [imageUrl],

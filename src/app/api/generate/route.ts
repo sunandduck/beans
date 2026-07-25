@@ -5,7 +5,7 @@ export const maxDuration = 300;
 // 火山方舟 API 配置（多模态图像理解）
 const ARK_API_KEY = process.env.ARK_API_KEY;
 const ARK_ENDPOINT = "https://ark.cn-beijing.volces.com/api/v3/chat/completions";
-const ARK_MODEL = "doubao-1-5-pro-32k-250115";
+const ARK_MODEL = "Doubao-Seed-2.1-turbo";
 
 // 火山引擎即梦 AI API 配置（文生图）
 const JIMENG_ENDPOINT = "https://visual.volcengineapi.com";

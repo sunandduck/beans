@@ -127,7 +127,7 @@ async function generateCartoon(description: string, style: string): Promise<{ su
   const amzDate = now.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
   
   // 构建 prompt：Q 版卡通风格 + 图片描述
-  const prompt = `Q 版卡通风格，大头小身体，纯色块，简洁线条，可爱风格，${description}`;
+  const prompt = `Q 版卡通风格，大头小身体，纯色块，简洁线条，可爱风格，无背景，白色背景，${description}`;
   
   // 使用即梦 4.0 文生图模型
   const reqKey = "jimeng_t2i_v40";

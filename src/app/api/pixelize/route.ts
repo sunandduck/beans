@@ -109,9 +109,9 @@ async function submitJimengTask(imageUrl: string, accessKey: string, secretKey: 
 
   const bodyHash = crypto.createHash("sha256").update(body).digest("hex");
   
-  const canonicalHeaders = `content-type:application/json\nhost:visual.volcengineapi.com\nx-date:${amzDate}\n`;
+  const canonicalHeaders = `content-type:application/json\nhost:visual.volcengineapi.com\nx-date:${amzDate}`;
   const signedHeaders = "content-type;host;x-date";
-  const canonicalRequest = `POST\n/\nAction=CVSync2AsyncSubmitTask&Version=2022-08-31\n${canonicalHeaders}\n${signedHeaders}\n${bodyHash}`;
+  const canonicalRequest = `POST\n/\nAction=CVSync2AsyncSubmitTask&Version=2022-08-31\n${canonicalHeaders}\n\n${signedHeaders}\n${bodyHash}`;
   
   const credentialScope = `${dateStamp}/${JIMENG_REGION}/${JIMENG_SERVICE}/request`;
   const stringToSign = `HMAC-SHA256\n${amzDate}\n${credentialScope}\n${crypto.createHash("sha256").update(canonicalRequest).digest("hex")}`;
@@ -121,6 +121,13 @@ async function submitJimengTask(imageUrl: string, accessKey: string, secretKey: 
   
   const authorization = `HMAC-SHA256 Credential=${accessKey}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
+  console.log("=== DEBUG ===");
+  console.log("canonicalRequest:", JSON.stringify(canonicalRequest));
+  console.log("stringToSign:", JSON.stringify(stringToSign));
+  console.log("signature:", signature);
+  console.log("authorization:", authorization);
+  console.log("=== END DEBUG ===");
+
   const response = await fetch(
     `${JIMENG_ENDPOINT}/?Action=CVSync2AsyncSubmitTask&Version=2022-08-31`,
     {
@@ -128,6 +135,7 @@ async function submitJimengTask(imageUrl: string, accessKey: string, secretKey: 
       headers: {
         "Content-Type": "application/json",
         "Host": "visual.volcengineapi.com",
+        "X-Content-Sha256": bodyHash,
         "X-Date": amzDate,
         "Authorization": authorization,
       },
@@ -163,7 +171,7 @@ async function pollJimengResult(taskId: string, accessKey: string, secretKey: st
     
     const canonicalHeaders = `content-type:application/json\nhost:visual.volcengineapi.com\nx-date:${amzDate}\n`;
     const signedHeaders = "content-type;host;x-date";
-    const canonicalRequest = `POST\n/\nAction=CVSync2AsyncGetResult&Version=2022-08-31\n${canonicalHeaders}\n${signedHeaders}\n${bodyHash}`;
+    const canonicalRequest = `POST\n/\nAction=CVSync2AsyncGetResult&Version=2022-08-31\n${canonicalHeaders}\n\n${signedHeaders}\n${bodyHash}`;
     
     const credentialScope = `${dateStamp}/${JIMENG_REGION}/${JIMENG_SERVICE}/request`;
     const stringToSign = `HMAC-SHA256\n${amzDate}\n${credentialScope}\n${crypto.createHash("sha256").update(canonicalRequest).digest("hex")}`;

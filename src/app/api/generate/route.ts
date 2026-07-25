@@ -102,8 +102,8 @@ async function generateCartoon(description: string, style: string, accessKey: st
 
   const bodyHash = crypto.createHash("sha256").update(body).digest("hex");
   
-  const canonicalHeaders = `content-type:application/json\nhost:visual.volcengineapi.com\nx-date:${amzDate}\n`;
-  const signedHeaders = "content-type;host;x-date";
+  const canonicalHeaders = `content-type:application/json\nhost:visual.volcengineapi.com\nx-content-sha256:${bodyHash}\nx-date:${amzDate}\n`;
+  const signedHeaders = "content-type;host;x-content-sha256;x-date";
   const canonicalRequest = `POST\n/\nAction=CVSync2AsyncSubmitTask&Version=2022-08-31\n${canonicalHeaders}\n${signedHeaders}\n${bodyHash}`;
   
   const credentialScope = `${dateStamp}/${JIMENG_REGION}/${JIMENG_SERVICE}/request`;
@@ -121,6 +121,7 @@ async function generateCartoon(description: string, style: string, accessKey: st
       headers: {
         "Content-Type": "application/json",
         "Host": "visual.volcengineapi.com",
+        "X-Content-Sha256": bodyHash,
         "X-Date": amzDate,
         "Authorization": authorization,
       },

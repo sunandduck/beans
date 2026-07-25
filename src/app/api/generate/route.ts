@@ -8,23 +8,8 @@ const ARK_ENDPOINT = "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
 const ARK_MODEL = "doubao-seed-2-1-turbo-260628";
 
 // 火山引擎即梦 AI API 配置（文生图）
-const JIMENG_ENDPOINT = "https://visual.volcengineapi.com";
-const JIMENG_REGION = "cn-north-1";
-const JIMENG_SERVICE = "cv";
-
-// 火山引擎签名生成
-function sign(key: string | Buffer, msg: string): Buffer {
-  const crypto = require("crypto");
-  return crypto.createHmac("sha256", key).update(msg).digest();
-}
-
-function getSignatureKey(secretKey: string, dateStamp: string, region: string, service: string): Buffer {
-  const kDate = sign(secretKey, dateStamp);
-  const kRegion = sign(kDate, region);
-  const kService = sign(kRegion, service);
-  const kSigning = sign(kService, "request");
-  return kSigning;
-}
+const JIMENG_ACCESS_KEY = process.env.JIMENG_ACCESS_KEY;
+const JIMENG_SECRET_KEY = process.env.JIMENG_SECRET_KEY;
 
 // 步骤 1：调用火山方舟多模态模型分析图片
 async function analyzeImage(imageUrl: string): Promise<{ success: boolean; description?: string; error?: string }> {
@@ -51,15 +36,13 @@ async function analyzeImage(imageUrl: string): Promise<{ success: boolean; descr
               },
               {
                 type: "image_url",
-                image_url: {
-                  url: imageUrl
-                }
+                image_url: { url: imageUrl }
               }
             ]
           }
         ],
         max_tokens: 500,
-        temperature: 0.7,
+        temperature: 0.7
       }),
     });
 
@@ -75,6 +58,7 @@ async function analyzeImage(imageUrl: string): Promise<{ success: boolean; descr
       return { success: false, error: "未获取到图片描述" };
     }
 
+    console.log("图片描述:", description);
     return { success: true, description };
   } catch (error) {
     return { success: false, error: `方舟 API 调用异常：${error}` };
@@ -82,122 +66,80 @@ async function analyzeImage(imageUrl: string): Promise<{ success: boolean; descr
 }
 
 // 步骤 2：调用即梦文生图模型生成 Q 版卡通
-async function generateCartoon(description: string, style: string, accessKey: string, secretKey: string): Promise<{ success: boolean; taskId?: string; error?: string }> {
-  const crypto = require("crypto");
-  
-  const now = new Date();
-  const dateStamp = now.toISOString().slice(0, 10).replace(/-/g, "");
-  const amzDate = now.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
-  
-  // 构建 prompt：Q 版卡通风格 + 图片描述
-  const prompt = `Q 版卡通风格，大头小身体，纯色块，简洁线条，可爱风格，${description}`;
-  
-  const body = JSON.stringify({
-    req_key: "jimeng_t2i_v30",
-    prompt: prompt,
-    width: 512,
-    height: 512,
-    seed: -1,
-  });
-
-  const bodyHash = crypto.createHash("sha256").update(body).digest("hex");
-  
-  const canonicalHeaders = `content-type:application/json\nhost:visual.volcengineapi.com\nx-content-sha256:${bodyHash}\nx-date:${amzDate}\n`;
-  const signedHeaders = "content-type;host;x-content-sha256;x-date";
-  const canonicalRequest = `POST\n/\nAction=CVSync2AsyncSubmitTask&Version=2022-08-31\n${canonicalHeaders}\n${signedHeaders}\n${bodyHash}`;
-  
-  const credentialScope = `${dateStamp}/${JIMENG_REGION}/${JIMENG_SERVICE}/request`;
-  const stringToSign = `HMAC-SHA256\n${amzDate}\n${credentialScope}\n${crypto.createHash("sha256").update(canonicalRequest).digest("hex")}`;
-  
-  const signingKey = getSignatureKey(secretKey, dateStamp, JIMENG_REGION, JIMENG_SERVICE);
-  const signature = crypto.createHmac("sha256", signingKey).update(stringToSign).digest("hex");
-  
-  const authorization = `HMAC-SHA256 Credential=${accessKey}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
-
-  const response = await fetch(
-    `${JIMENG_ENDPOINT}/?Action=CVSync2AsyncSubmitTask&Version=2022-08-31`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Host": "visual.volcengineapi.com",
-        "X-Content-Sha256": bodyHash,
-        "X-Date": amzDate,
-        "Authorization": authorization,
-      },
-      body,
-    }
-  );
-
-  const result = await response.json();
-  
-  if (result.code !== 10000) {
-    return { success: false, error: `提交任务失败：${result.message}` };
+async function generateCartoon(description: string, style: string): Promise<{ success: boolean; imageUrl?: string; error?: string }> {
+  if (!JIMENG_ACCESS_KEY || !JIMENG_SECRET_KEY) {
+    return { success: false, error: "未配置火山引擎密钥" };
   }
 
-  return { success: true, taskId: result.data?.task_id };
-}
-
-async function pollJimengResult(taskId: string, accessKey: string, secretKey: string, maxAttempts = 60): Promise<string | null> {
-  const crypto = require("crypto");
-  
-  for (let i = 0; i < maxAttempts; i++) {
-    await new Promise(resolve => setTimeout(resolve, 2000));
+  try {
+    // 使用火山引擎官方 SDK
+    const { Service } = await import('@volcengine/openapi');
     
-    const now = new Date();
-    const dateStamp = now.toISOString().slice(0, 10).replace(/-/g, "");
-    const amzDate = now.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
-    
-    const body = JSON.stringify({
-      req_key: "jimeng_t2i_v30",
-      task_id: taskId,
+    const service = new Service({
+      host: 'visual.volcengineapi.com',
+      region: 'cn-north-1',
+      service: 'cv',
     });
 
-    const bodyHash = crypto.createHash("sha256").update(body).digest("hex");
-    
-    const canonicalHeaders = `content-type:application/json\nhost:visual.volcengineapi.com\nx-date:${amzDate}\n`;
-    const signedHeaders = "content-type;host;x-date";
-    const canonicalRequest = `POST\n/\nAction=CVSync2AsyncGetResult&Version=2022-08-31\n${canonicalHeaders}\n${signedHeaders}\n${bodyHash}`;
-    
-    const credentialScope = `${dateStamp}/${JIMENG_REGION}/${JIMENG_SERVICE}/request`;
-    const stringToSign = `HMAC-SHA256\n${amzDate}\n${credentialScope}\n${crypto.createHash("sha256").update(canonicalRequest).digest("hex")}`;
-    
-    const signingKey = getSignatureKey(secretKey, dateStamp, JIMENG_REGION, JIMENG_SERVICE);
-    const signature = crypto.createHmac("sha256", signingKey).update(stringToSign).digest("hex");
-    
-    const authorization = `HMAC-SHA256 Credential=${accessKey}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+    service.setAccessKeyId(JIMENG_ACCESS_KEY);
+    service.setSecretKey(JIMENG_SECRET_KEY);
 
-    const response = await fetch(
-      `${JIMENG_ENDPOINT}/?Action=CVSync2AsyncGetResult&Version=2022-08-31`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Host": "visual.volcengineapi.com",
-          "X-Date": amzDate,
-          "Authorization": authorization,
-        },
-        body,
+    // 构建 prompt：Q 版卡通风格 + 图片描述
+    const prompt = `Q 版卡通风格，大头小身体，纯色块，简洁线条，可爱风格，${description}`;
+
+    // 提交任务
+    const submitResult = await service.fetch('CVSync2AsyncSubmitTask', {
+      req_key: 'jimeng_t2i_v30',
+      prompt: prompt,
+      width: 512,
+      height: 512,
+      seed: -1,
+    }, '2022-08-31', 'POST');
+
+    console.log("提交任务结果:", submitResult);
+
+    if (submitResult.code !== 10000) {
+      return { success: false, error: `提交任务失败：${submitResult.message}` };
+    }
+
+    const taskId = submitResult.data?.task_id;
+    if (!taskId) {
+      return { success: false, error: "未获取到任务 ID" };
+    }
+
+    // 轮询结果
+    for (let i = 0; i < 60; i++) {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      const pollResult = await service.fetch('CVSync2AsyncGetResult', {
+        req_key: 'jimeng_t2i_v30',
+        task_id: taskId,
+      }, '2022-08-31', 'POST');
+
+      console.log(`轮询 ${i + 1}:`, pollResult.code);
+
+      if (pollResult.code === 10000) {
+        const imageUrl = pollResult.data?.resp_data?.image_urls?.[0];
+        if (imageUrl) {
+          return { success: true, imageUrl };
+        }
+      } else if (pollResult.code !== 10002) {
+        // 10002 表示任务进行中
+        return { success: false, error: `获取结果失败：${pollResult.message}` };
       }
-    );
+    }
 
-    const result = await response.json();
-    
-    if (result.code === 10000 && result.data?.images?.[0]?.url) {
-      return result.data.images[0].url;
-    }
-    
-    if (result.data?.status === "failed") {
-      return null;
-    }
+    return { success: false, error: "任务超时" };
+  } catch (error) {
+    console.error("生成卡通异常:", error);
+    return { success: false, error: `生成卡通异常：${error}` };
   }
-  
-  return null;
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const { imageUrl, style } = await request.json();
+    const body = await request.json();
+    const { imageUrl, style } = body;
 
     if (!imageUrl) {
       return NextResponse.json(
@@ -206,57 +148,40 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 步骤 1：分析图片，生成文字描述
-    const analysisResult = await analyzeImage(imageUrl);
-    
-    if (!analysisResult.success) {
+    console.log("[GenerateAPI] 开始 AI 卡通化:", { imageUrl, style });
+
+    // 步骤 1：分析图片
+    const analyzeResult = await analyzeImage(imageUrl);
+    if (!analyzeResult.success) {
+      console.error("[GenerateAPI] 分析图片失败:", analyzeResult.error);
       return NextResponse.json(
-        { error: analysisResult.error || "图片分析失败" },
+        { error: analyzeResult.error },
         { status: 500 }
       );
     }
 
-    const description = analysisResult.description;
+    console.log("[GenerateAPI] 图片描述:", analyzeResult.description);
 
-    // 步骤 2：根据描述生成 Q 版卡通图
-    const accessKey = process.env.JIMENG_ACCESS_KEY;
-    const secretKey = process.env.JIMENG_SECRET_KEY;
-
-    if (!accessKey || !secretKey) {
+    // 步骤 2：生成卡通
+    const generateResult = await generateCartoon(analyzeResult.description!, style);
+    if (!generateResult.success) {
+      console.error("[GenerateAPI] 生成卡通失败:", generateResult.error);
       return NextResponse.json(
-        { error: "未配置火山引擎 API 密钥" },
+        { error: generateResult.error },
         { status: 500 }
       );
     }
 
-    const submitResult = await generateCartoon(description, style, accessKey, secretKey);
-    
-    if (!submitResult.success || !submitResult.taskId) {
-      return NextResponse.json(
-        { error: submitResult.error || "提交任务失败" },
-        { status: 500 }
-      );
-    }
-
-    // 轮询获取结果
-    const resultUrl = await pollJimengResult(submitResult.taskId, accessKey, secretKey);
-    
-    if (!resultUrl) {
-      return NextResponse.json(
-        { error: "生成超时或失败" },
-        { status: 500 }
-      );
-    }
+    console.log("[GenerateAPI] 卡通图片 URL:", generateResult.imageUrl);
 
     return NextResponse.json({
       success: true,
-      imageUrl: resultUrl,
-      description: description,
+      imageUrl: generateResult.imageUrl,
     });
   } catch (error) {
-    console.error("AI 生成错误:", error);
+    console.error("[GenerateAPI] 处理失败:", error);
     return NextResponse.json(
-      { error: "AI 生成失败" },
+      { error: "处理失败，请稍后重试" },
       { status: 500 }
     );
   }

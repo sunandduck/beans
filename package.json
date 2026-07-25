@@ -44,6 +44,7 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@supabase/supabase-js": "2.95.3",
     "@tailwindcss/postcss": "^4",
+    "@volcengine/openapi": "^1.36.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
@@ -82,9 +83,7 @@
   "devDependencies": {
     "@react-dev-inspector/babel-plugin": "^2.0.1",
     "@react-dev-inspector/middleware": "^2.0.1",
-    
     "@types/pg": "^8.16.0",
-    
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.1",

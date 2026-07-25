@@ -129,8 +129,8 @@ async function generateCartoon(description: string, style: string): Promise<{ su
   // 构建 prompt：Q 版卡通风格 + 图片描述
   const prompt = `Chibi 风格，大头小身体，超可爱，纯色块，简洁线条，纯白色背景，只画人物，不要画任何背景、家具、枕头、沙发等，人物居中，${description}`;
   
-  // 使用即梦 4.0 文生图模型
-  const reqKey = "jimeng_t2i_v40";
+  // 使用智能绘图（文生图）模型
+  const reqKey = "high_aes_general_v20_L";
   const body = JSON.stringify({
     req_key: reqKey,
     prompt: prompt,

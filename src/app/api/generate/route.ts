@@ -93,7 +93,7 @@ async function generateCartoon(description: string, style: string, accessKey: st
   const prompt = `Q 版卡通风格，大头小身体，纯色块，简洁线条，可爱风格，${description}`;
   
   const body = JSON.stringify({
-    req_key: "jimeng_t2i_v40",
+    req_key: "jimeng_t2i_v30",
     prompt: prompt,
     width: 512,
     height: 512,
@@ -148,7 +148,7 @@ async function pollJimengResult(taskId: string, accessKey: string, secretKey: st
     const amzDate = now.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
     
     const body = JSON.stringify({
-      req_key: "jimeng_t2i_v40",
+      req_key: "jimeng_t2i_v30",
       task_id: taskId,
     });
 

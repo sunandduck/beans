@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const maxDuration = 300;
 
-// 火山引擎即梦 AI API 配置
+// 火山方舟 API 配置（多模态图像理解）
+const ARK_API_KEY = process.env.ARK_API_KEY;
+const ARK_ENDPOINT = "https://ark.cn-beijing.volces.com/api/v3/chat/completions";
+const ARK_MODEL = "doubao-1-5-pro-32k-250115";
+
+// 火山引擎即梦 AI API 配置（文生图）
 const JIMENG_ENDPOINT = "https://visual.volcengineapi.com";
 const JIMENG_REGION = "cn-north-1";
 const JIMENG_SERVICE = "cv";
@@ -21,19 +26,78 @@ function getSignatureKey(secretKey: string, dateStamp: string, region: string, s
   return kSigning;
 }
 
-async function submitJimengTask(imageUrl: string, prompt: string, accessKey: string, secretKey: string): Promise<{ success: boolean; taskId?: string; error?: string }> {
+// 步骤 1：调用火山方舟多模态模型分析图片
+async function analyzeImage(imageUrl: string): Promise<{ success: boolean; description?: string; error?: string }> {
+  if (!ARK_API_KEY) {
+    return { success: false, error: "未配置 ARK_API_KEY 环境变量" };
+  }
+
+  try {
+    const response = await fetch(ARK_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${ARK_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: ARK_MODEL,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: "请详细描述这张图片的内容，包括：人物外貌特征（脸型、发型、发色）、服装颜色和款式、表情、姿势、背景环境、主要颜色等。描述要简洁清晰，适合用于生成 Q 版卡通形象。"
+              },
+              {
+                type: "image_url",
+                image_url: {
+                  url: imageUrl
+                }
+              }
+            ]
+          }
+        ],
+        max_tokens: 500,
+        temperature: 0.7,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return { success: false, error: `方舟 API 调用失败：${response.status} - ${errorText}` };
+    }
+
+    const result = await response.json();
+    const description = result.choices?.[0]?.message?.content;
+    
+    if (!description) {
+      return { success: false, error: "未获取到图片描述" };
+    }
+
+    return { success: true, description };
+  } catch (error) {
+    return { success: false, error: `方舟 API 调用异常：${error}` };
+  }
+}
+
+// 步骤 2：调用即梦文生图模型生成 Q 版卡通
+async function generateCartoon(description: string, style: string, accessKey: string, secretKey: string): Promise<{ success: boolean; taskId?: string; error?: string }> {
   const crypto = require("crypto");
   
   const now = new Date();
   const dateStamp = now.toISOString().slice(0, 10).replace(/-/g, "");
   const amzDate = now.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
   
+  // 构建 prompt：Q 版卡通风格 + 图片描述
+  const prompt = `Q 版卡通风格，大头小身体，纯色块，简洁线条，可爱风格，${description}`;
+  
   const body = JSON.stringify({
-    req_key: "jimeng_i2i_v30",
-    image_urls: [imageUrl],
+    req_key: "jimeng_t2i_v30",
     prompt: prompt,
     width: 512,
     height: 512,
+    seed: -1,
   });
 
   const bodyHash = crypto.createHash("sha256").update(body).digest("hex");
@@ -84,7 +148,7 @@ async function pollJimengResult(taskId: string, accessKey: string, secretKey: st
     const amzDate = now.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
     
     const body = JSON.stringify({
-      req_key: "jimeng_i2i_v30",
+      req_key: "jimeng_t2i_v30",
       task_id: taskId,
     });
 
@@ -118,12 +182,11 @@ async function pollJimengResult(taskId: string, accessKey: string, secretKey: st
 
     const result = await response.json();
     
-    if (result.code === 10000 && result.data?.status === "done") {
-      return result.data?.image_urls?.[0] || null;
+    if (result.code === 10000 && result.data?.images?.[0]?.url) {
+      return result.data.images[0].url;
     }
     
-    if (result.code === 10000 && result.data?.status === "failed") {
-      console.error("[GenerateAPI] 任务失败:", result);
+    if (result.data?.status === "failed") {
       return null;
     }
   }
@@ -133,98 +196,67 @@ async function pollJimengResult(taskId: string, accessKey: string, secretKey: st
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { imageUrl, prompt: userPrompt, subjectDesc } = body;
+    const { imageUrl, style } = await request.json();
 
     if (!imageUrl) {
-      return NextResponse.json({ error: 'Missing imageUrl' }, { status: 400 });
+      return NextResponse.json(
+        { error: "缺少图片 URL" },
+        { status: 400 }
+      );
     }
 
+    // 步骤 1：分析图片，生成文字描述
+    const analysisResult = await analyzeImage(imageUrl);
+    
+    if (!analysisResult.success) {
+      return NextResponse.json(
+        { error: analysisResult.error || "图片分析失败" },
+        { status: 500 }
+      );
+    }
+
+    const description = analysisResult.description;
+
+    // 步骤 2：根据描述生成 Q 版卡通图
     const accessKey = process.env.JIMENG_ACCESS_KEY;
     const secretKey = process.env.JIMENG_SECRET_KEY;
 
     if (!accessKey || !secretKey) {
       return NextResponse.json(
-        { error: "AI 服务未配置，请联系管理员设置 JIMENG_ACCESS_KEY 和 JIMENG_SECRET_KEY" },
-        { status: 503 }
+        { error: "未配置火山引擎 API 密钥" },
+        { status: 500 }
       );
     }
 
-    // Build a comprehensive prompt for low-pixel cartoon style
-    const basePrompt = userPrompt || 
-      `【强制要求】生成像素风格图像，专为拼豆手工制作设计：
-      
-      核心风格：Q 版大头小身体（chibi 风格），专为拼豆图纸设计
-      
-      设计原则（拼豆可拼性 > 还原度）：
-      - 只抓核心要素：脸型轮廓、发型、眼睛、嘴巴、主要服装色块
-      - 忽略细节：不要毛孔、皱纹、衣物纹理、配饰细节
-      - 每个特征用 1-2 个纯色块表示，不要渐变
-      
-      构图要求：
-      - 大头小身体：头部占画面 50-60%，身体占 20-30%
-      - 头部简化为圆形或椭圆形，不要复杂脸型
-      - 眼睛：大而简单，2 个黑色圆点或椭圆，占头部 1/4
-      - 嘴巴：一条简单弧线或省略
-      - 发型：用 1-2 个大色块概括，不要发丝细节
-      - 服装：用 1-2 个纯色块，不要图案和纹理
-      
-      技术要求：
-      - 透明背景（alpha 通道为 0），不要任何背景色
-      - 粗黑色轮廓线（2-3 像素宽）勾勒主体
-      - 绝对纯色块，无渐变、无抗锯齿、无阴影
-      - 颜色数量限制在 4-8 种（越少越好）
-      - 主体居中，占画面 70-80%
-      - 每个色块至少 8×8 像素，不要有小于 8×8 的细节
-      - 整体效果应该像一个 32×32 的像素画
-      
-      禁止事项：
-      - 禁止写实风格、照片质感
-      - 禁止小细节（小于 8 像素的元素）
-      - 禁止渐变、模糊、抗锯齿、阴影
-      - 禁止复杂纹理、图案、装饰
-      - 禁止超过 8 种颜色
-      - 禁止复杂背景
-      
-      参考风格：Q 版表情包、chibi 贴纸、简单像素头像`;
-
-    const fullPrompt = subjectDesc 
-      ? `${basePrompt}\n\nSubject description: ${subjectDesc}`
-      : basePrompt;
-
-    console.log("[GenerateAPI] 开始 AI 重构:", { imageUrl });
-
-    // 提交任务
-    const submitResult = await submitJimengTask(imageUrl, fullPrompt, accessKey, secretKey);
+    const submitResult = await generateCartoon(description, style, accessKey, secretKey);
     
-    if (!submitResult.success) {
-      throw new Error(submitResult.error || "提交任务失败");
+    if (!submitResult.success || !submitResult.taskId) {
+      return NextResponse.json(
+        { error: submitResult.error || "提交任务失败" },
+        { status: 500 }
+      );
     }
-
-    const taskId = submitResult.taskId;
-    if (!taskId) {
-      throw new Error("提交任务失败：未获取到 task_id");
-    }
-    console.log("[GenerateAPI] 任务已提交:", taskId);
 
     // 轮询获取结果
-    const resultImageUrl = await pollJimengResult(taskId, accessKey, secretKey);
+    const resultUrl = await pollJimengResult(submitResult.taskId, accessKey, secretKey);
     
-    if (!resultImageUrl) {
-      throw new Error("AI 重构失败：未获取到结果");
+    if (!resultUrl) {
+      return NextResponse.json(
+        { error: "生成超时或失败" },
+        { status: 500 }
+      );
     }
 
-    console.log("[GenerateAPI] AI 重构完成:", resultImageUrl);
-
-    return NextResponse.json({ 
-      success: true, 
-      imageUrl: resultImageUrl,
-      prompt: fullPrompt 
+    return NextResponse.json({
+      success: true,
+      imageUrl: resultUrl,
+      description: description,
     });
   } catch (error) {
-    console.error('Generate API error:', error);
-    return NextResponse.json({ 
-      error: error instanceof Error ? error.message : 'Internal server error' 
-    }, { status: 500 });
+    console.error("AI 生成错误:", error);
+    return NextResponse.json(
+      { error: "AI 生成失败" },
+      { status: 500 }
+    );
   }
 }

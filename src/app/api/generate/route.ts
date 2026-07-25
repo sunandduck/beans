@@ -114,21 +114,10 @@ async function analyzeImage(imageUrl: string): Promise<{ success: boolean; descr
   }
 }
 
-// 步骤 2：调用智能绘图图生图模型生成 Q 版卡通
-async function generateCartoon(imageUrl: string, description: string, style: string): Promise<{ success: boolean; imageUrl?: string; error?: string }> {
+// 步骤 2：调用即梦 4.0 文生图模型生成 Q 版卡通
+async function generateCartoon(description: string, style: string): Promise<{ success: boolean; imageUrl?: string; error?: string }> {
   if (!JIMENG_ACCESS_KEY || !JIMENG_SECRET_KEY) {
     return { success: false, error: "未配置火山引擎密钥" };
-  }
-
-  // 如果是 base64 data URL，先上传到 COS
-  let finalImageUrl = imageUrl;
-  if (imageUrl.startsWith('data:')) {
-    try {
-      finalImageUrl = await uploadBase64ToCOS(imageUrl);
-      console.log("已上传 base64 图片到 COS:", finalImageUrl);
-    } catch (error) {
-      return { success: false, error: `上传图片失败：${error}` };
-    }
   }
 
   const crypto = require("crypto");
@@ -140,32 +129,19 @@ async function generateCartoon(imageUrl: string, description: string, style: str
   // 构建 prompt：Q 版卡通风格 + 图片描述
   const prompt = `Q 版卡通风格，大头小身体，纯色块，简洁线条，可爱风格，${description}`;
   
-  // 处理图片数据：支持 base64 和 URL
-  let body: any;
-  let reqKey: string;
-  if (imageUrl.startsWith("data:")) {
-    // base64 数据：提取 base64 部分
-    const base64Data = imageUrl.split(",")[1];
-    reqKey = "i2i_xl_sft";
-    body = JSON.stringify({
-      req_key: reqKey,
-      binary_data_base64: [base64Data],
-      prompt: prompt,
-    });
-  } else {
-    // URL 数据：使用智能绘图图生图模型
-    reqKey = "i2i_xl_sft";
-    body = JSON.stringify({
-      req_key: reqKey,
-      image_urls: [imageUrl],
-      prompt: prompt,
-      seed: -1,
-      scale: 7.0,
-      ddim_steps: 20,
-      return_url: true,
-      force_single: true,
-    });
-  }
+  // 使用即梦 4.0 文生图模型
+  const reqKey = "jimeng_t2i_v40";
+  const body = JSON.stringify({
+    req_key: reqKey,
+    prompt: prompt,
+    seed: -1,
+    scale: 7.0,
+    ddim_steps: 20,
+    width: 1024,
+    height: 1024,
+    return_url: true,
+    force_single: true,
+  });
 
   const bodyHash = crypto.createHash("sha256").update(body).digest("hex");
   
@@ -209,7 +185,7 @@ async function generateCartoon(imageUrl: string, description: string, style: str
       return { success: false, error: "未获取到任务 ID" };
     }
 
-    // 轮询结果
+    // 轮询结果（最多 60 次，每次 2 秒，共 120 秒）
     for (let i = 0; i < 60; i++) {
       await new Promise(resolve => setTimeout(resolve, 2000));
 
@@ -307,7 +283,7 @@ export async function POST(request: NextRequest) {
     console.log("[GenerateAPI] 图片描述:", analyzeResult.description);
 
     // 步骤 2：生成卡通
-    const generateResult = await generateCartoon(imageUrl, analyzeResult.description!, style);
+    const generateResult = await generateCartoon(analyzeResult.description!, style);
     if (!generateResult.success) {
       console.error("[GenerateAPI] 生成卡通失败:", generateResult.error);
       return NextResponse.json(

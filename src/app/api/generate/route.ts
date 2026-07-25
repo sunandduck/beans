@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { cos, bucket, region } from '@/lib/cos';
 
 export const maxDuration = 300;
 
@@ -26,6 +27,37 @@ function getSignatureKey(secretKey: string, dateStamp: string, region: string, s
   const kService = sign(kRegion, service);
   const kSigning = sign(kService, "request");
   return kSigning;
+}
+
+// 将 base64 data URL 上传到 COS，返回 HTTP URL
+async function uploadBase64ToCOS(dataUrl: string): Promise<string> {
+  const match = dataUrl.match(/^data:image\/(\w+);base64,(.+)$/);
+  if (!match) {
+    throw new Error("Invalid data URL format");
+  }
+  
+  const ext = match[1] === 'jpeg' ? 'jpg' : match[1];
+  const base64Data = match[2];
+  const buffer = Buffer.from(base64Data, 'base64');
+  
+  const key = `temp/cartoon_${Date.now()}.${ext}`;
+  
+  return new Promise((resolve, reject) => {
+    cos.putObject({
+      Bucket: bucket,
+      Region: region,
+      Key: key,
+      Body: buffer,
+      ContentType: `image/${match[1]}`,
+    }, (err: any, data: any) => {
+      if (err) {
+        reject(err);
+      } else {
+        const url = `https://${bucket}.cos.${region}.myqcloud.com/${key}`;
+        resolve(url);
+      }
+    });
+  });
 }
 
 // 步骤 1：调用火山方舟多模态模型分析图片
@@ -88,6 +120,17 @@ async function generateCartoon(imageUrl: string, description: string, style: str
     return { success: false, error: "未配置火山引擎密钥" };
   }
 
+  // 如果是 base64 data URL，先上传到 COS
+  let finalImageUrl = imageUrl;
+  if (imageUrl.startsWith('data:')) {
+    try {
+      finalImageUrl = await uploadBase64ToCOS(imageUrl);
+      console.log("已上传 base64 图片到 COS:", finalImageUrl);
+    } catch (error) {
+      return { success: false, error: `上传图片失败：${error}` };
+    }
+  }
+
   const crypto = require("crypto");
   
   const now = new Date();
@@ -97,16 +140,32 @@ async function generateCartoon(imageUrl: string, description: string, style: str
   // 构建 prompt：Q 版卡通风格 + 图片描述
   const prompt = `Q 版卡通风格，大头小身体，纯色块，简洁线条，可爱风格，${description}`;
   
-  const body = JSON.stringify({
-    req_key: "jimeng_t2i_v40",
-    image_urls: [imageUrl],
-    prompt: prompt,
-    seed: -1,
-    scale: 7.0,
-    ddim_steps: 20,
-    return_url: true,
-    force_single: true,
-  });
+  // 处理图片数据：支持 base64 和 URL
+  let body: any;
+  let reqKey: string;
+  if (imageUrl.startsWith("data:")) {
+    // base64 数据：提取 base64 部分
+    const base64Data = imageUrl.split(",")[1];
+    reqKey = "img2img_ai_doodle_dreamina";
+    body = JSON.stringify({
+      req_key: reqKey,
+      binary_data_base64: [base64Data],
+      prompt: prompt,
+    });
+  } else {
+    // URL 数据：使用图生图模型
+    reqKey = "img2img_ai_doodle_dreamina";
+    body = JSON.stringify({
+      req_key: reqKey,
+      image_urls: [imageUrl],
+      prompt: prompt,
+      seed: -1,
+      scale: 7.0,
+      ddim_steps: 20,
+      return_url: true,
+      force_single: true,
+    });
+  }
 
   const bodyHash = crypto.createHash("sha256").update(body).digest("hex");
   
@@ -159,7 +218,7 @@ async function generateCartoon(imageUrl: string, description: string, style: str
       const amzDate2 = now2.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
       
       const pollBody = JSON.stringify({
-        req_key: "high_aes_general_v20_L",
+        req_key: reqKey,
         task_id: taskId,
       });
 
@@ -192,6 +251,7 @@ async function generateCartoon(imageUrl: string, description: string, style: str
       );
 
       const pollResult = await pollResponse.json();
+      console.log(`轮询 ${i + 1}:`, pollResult.code, pollResult.data?.status);
 
       if (pollResult.code === 10000 && pollResult.data?.status === "done") {
         // 优先使用 image_urls，如果没有则使用 binary_data_base64

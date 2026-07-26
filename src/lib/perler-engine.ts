@@ -1478,8 +1478,14 @@ export function renderPattern(
 
   // 计算画布尺寸（包含坐标标签和底部色号清单）
   const labelSize = 30; // 坐标标签区域
-  const colorListHeight = 80; // 底部色号清单区域
   const topMargin = 40; // 顶部标题区域
+  
+  // 动态计算色号清单所需高度
+  const sampleSize = 20;
+  const sampleGap = 10;
+  const itemsPerRow = Math.floor((width * beadSize + labelSize - 100) / (sampleSize + 60));
+  const colorRows = Math.ceil(colorStats.length / Math.max(1, itemsPerRow));
+  const colorListHeight = 30 + colorRows * (sampleSize + 10) + 10; // 标题 + 色号行 + 边距
   
   canvas.width = width * beadSize + labelSize;
   canvas.height = height * beadSize + labelSize + colorListHeight + topMargin;
@@ -1576,8 +1582,6 @@ export function renderPattern(
   ctx.fillText("色号清单:", 10, colorListY);
 
   // 绘制色号样本和数量
-  const sampleSize = 20;
-  const sampleGap = 10;
   let currentX = 10;
   let currentY = colorListY + 25;
 

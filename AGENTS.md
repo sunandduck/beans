@@ -66,27 +66,29 @@
 
 ## API 路由
 
-### `/api/cartoonize` - AI 卡通化
+### `/api/generate` - AI 卡通化（拼豆图纸生成）
 - **方法**: POST
-- **参数**: `{ imageUrl: string, style: BeadStyle }`
-- **功能**: 调用腾讯云混元生图 API (ImageToImage) 将图片卡通化
-- **风格映射**: ghibli→123, chibi_cartoon→107, anime_pixel→201, retro_game→129, chibi→116
+- **参数**: `{ imageUrl: string, prompt?: string, subjectDesc?: string }`
+- **功能**: 调用火山引擎 Seedream 5.0 Lite 图生图 API，将照片转换为拼豆风格的 Q 版卡通图
+- **模型**: `doubao-seedream-5-0-260128`（Seedream 5.0 Lite）
+- **输出尺寸**: 2048×2048
+- **价格**: 0.22 元/张
+- **提示词**: 内置拼豆图纸设计原则（Q 版 chibi 风格、透明背景、4-8 种颜色、粗黑色轮廓线）
 
-### `/api/remove-bg` - 通用抠图（去背景）
-- **方法**: POST
-- **参数**: `{ imageUrl: string }`
-- **功能**: 调用腾讯云数据万象 AIPicMatting 接口，检测图片中的主体（支持人物、动物、物品等），自动分割背景生成透明 PNG
-- **流程**: 上传图片到 COS → 调用 CI API 处理 → 返回透明背景图片 → 清理临时文件
-- **依赖**: COS 存储桶 `coze-1452232211`（广州），需绑定数据万象服务
+### `/api/remove-bg` - 通用抠图（去背景）⚠️ 已禁用
+- **状态**: 未使用，前端未集成此功能
+- **原功能**: 调用腾讯云数据万象 AIPicMatting 接口进行抠图
+- **依赖**: 腾讯云 COS + 数据万象 CI（需配置 TENCENTCLOUD_SECRET_ID 等环境变量）
 
 ## 环境变量
 
-| 变量名 | 说明 |
-|--------|------|
-| `TENCENTCLOUD_SECRET_ID` | 腾讯云 SecretId |
-| `TENCENTCLOUD_SECRET_KEY` | 腾讯云 SecretKey |
-| `COS_BUCKET` | COS 存储桶名称（默认 `coze-1452232211`） |
-| `COS_REGION` | COS 地域（默认 `ap-guangzhou`） |
+| 变量名 | 说明 | 必需 |
+|--------|------|------|
+| `ARK_API_KEY` | 火山方舟 API Key（Seedream 5.0 Lite） | ✅ 是 |
+| `TENCENTCLOUD_SECRET_ID` | 腾讯云 SecretId（抠图功能，已禁用） | ❌ 否 |
+| `TENCENTCLOUD_SECRET_KEY` | 腾讯云 SecretKey（抠图功能，已禁用） | ❌ 否 |
+| `COS_BUCKET` | COS 存储桶名称（抠图功能，已禁用） | ❌ 否 |
+| `COS_REGION` | COS 地域（抠图功能，已禁用） | ❌ 否 |
 
 ## 核心模块
 

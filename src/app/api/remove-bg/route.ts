@@ -1,24 +1,46 @@
+/**
+ * ⚠️ 此接口已禁用 - 未被前端使用
+ * 
+ * 原功能：调用腾讯云数据万象 AIPicMatting 接口进行抠图/去背景
+ * 禁用原因：前端从未调用过此接口，属于历史遗留代码
+ * 
+ * 如需重新启用，需要：
+ * 1. 配置腾讯云环境变量（TENCENTCLOUD_SECRET_ID, TENCENTCLOUD_SECRET_KEY, COS_BUCKET, COS_REGION）
+ * 2. 在前端添加调用逻辑
+ * 
+ * 依赖服务：
+ * - 腾讯云 COS（对象存储）
+ * - 腾讯云数据万象 CI（AI 抠图）
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
-import { S3Storage } from 'coze-coding-dev-sdk';
-import crypto from 'crypto';
+// import { S3Storage } from 'coze-coding-dev-sdk';
+// import crypto from 'crypto';
 
 export const maxDuration = 300;
 
 // Generate unique ID
-function generateId(): string {
-  return crypto.randomBytes(16).toString('hex');
-}
+// function generateId(): string {
+//   return crypto.randomBytes(16).toString('hex');
+// }
 
 // Initialize S3 storage
-const storage = new S3Storage({
-  endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL,
-  accessKey: '',
-  secretKey: '',
-  bucketName: process.env.COZE_BUCKET_NAME,
-  region: 'cn-beijing',
-});
+// const storage = new S3Storage({
+//   endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL,
+//   accessKey: '',
+//   secretKey: '',
+//   bucketName: process.env.COZE_BUCKET_NAME,
+//   region: 'cn-beijing',
+// });
 
 export async function POST(request: NextRequest) {
+  // 此接口已禁用
+  return NextResponse.json(
+    { error: '此功能暂未开放', disabled: true },
+    { status: 503 }
+  );
+
+  /* 原始实现代码（已注释）
   try {
     const body = await request.json();
     const { imageUrl } = body;
@@ -135,43 +157,44 @@ export async function POST(request: NextRequest) {
     console.error('Remove background error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
+  */
 }
 
-// Helper functions for signing
-async function hashSHA256(message: string): Promise<string> {
-  const msgBuffer = new TextEncoder().encode(message);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
+// Helper functions for signing (已注释)
+// async function hashSHA256(message: string): Promise<string> {
+//   const msgBuffer = new TextEncoder().encode(message);
+//   const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+//   const hashArray = Array.from(new Uint8Array(hashBuffer));
+//   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+// }
 
-async function hmacSHA256(key: string | ArrayBuffer, message: string): Promise<ArrayBuffer> {
-  const keyBuffer = typeof key === 'string' ? new TextEncoder().encode(key) : key;
-  const msgBuffer = new TextEncoder().encode(message);
-  
-  const cryptoKey = await crypto.subtle.importKey(
-    'raw',
-    keyBuffer,
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  );
-  
-  return await crypto.subtle.sign('HMAC', cryptoKey, msgBuffer);
-}
+// async function hmacSHA256(key: string | ArrayBuffer, message: string): Promise<ArrayBuffer> {
+//   const keyBuffer = typeof key === 'string' ? new TextEncoder().encode(key) : key;
+//   const msgBuffer = new TextEncoder().encode(message);
+//   
+//   const cryptoKey = await crypto.subtle.importKey(
+//     'raw',
+//     keyBuffer,
+//     { name: 'HMAC', hash: 'SHA-256' },
+//     false,
+//     ['sign']
+//   );
+//   
+//   return await crypto.subtle.sign('HMAC', cryptoKey, msgBuffer);
+// }
 
-async function hmacSHA256Hex(key: ArrayBuffer, message: string): Promise<string> {
-  const msgBuffer = new TextEncoder().encode(message);
-  
-  const cryptoKey = await crypto.subtle.importKey(
-    'raw',
-    key,
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  );
-  
-  const signature = await crypto.subtle.sign('HMAC', cryptoKey, msgBuffer);
-  const hashArray = Array.from(new Uint8Array(signature));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
+// async function hmacSHA256Hex(key: ArrayBuffer, message: string): Promise<string> {
+//   const msgBuffer = new TextEncoder().encode(message);
+//   
+//   const cryptoKey = await crypto.subtle.importKey(
+//     'raw',
+//     key,
+//     { name: 'HMAC', hash: 'SHA-256' },
+//     false,
+//     ['sign']
+//   );
+//   
+//   const signature = await crypto.subtle.sign('HMAC', cryptoKey, msgBuffer);
+//   const hashArray = Array.from(new Uint8Array(signature));
+//   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+// }

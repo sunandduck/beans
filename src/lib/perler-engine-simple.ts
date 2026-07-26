@@ -621,8 +621,8 @@ export function generatePatternImage(
 
   // 计算色号清单所需高度
   const colorCount = Object.keys(pattern.colorStats).length;
-  const maxPerRow = 8;
-  const colorRows = Math.ceil(colorCount / maxPerRow);
+  const legendMaxPerRow = 8;
+  const colorRows = Math.ceil(colorCount / legendMaxPerRow);
   const colorListHeight = colorRows > 0 ? 30 + colorRows * 40 + 20 : 0;
 
   canvas.width = pattern.width * cellSize + leftPadding + padding;

@@ -1574,7 +1574,7 @@ export function renderPattern(
   }
 
   // 绘制底部色号清单
-  const colorListY = height * beadSize + labelSize + topMargin + 20;
+  const colorListY = canvas.height - colorListHeight + 10;
   ctx.fillStyle = "#2D2A26";
   ctx.font = "bold 12px sans-serif";
   ctx.textAlign = "left";

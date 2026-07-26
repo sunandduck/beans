@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const maxDuration = 300;
 
-// 火山方舟配置（Seedream 5.0）
+// 火山方舟配置（Seedream 5.0 Lite）
 const ARK_API_KEY = process.env.ARK_API_KEY;
 const ARK_ENDPOINT = "https://ark.cn-beijing.volces.com/api/v3/images/generations";
 
@@ -43,21 +43,21 @@ const BASE_PROMPT = `【强制要求】生成像素风格图像，专为拼豆�
 
 参考风格：Q版表情包、chibi 贴纸、简单像素头像`;
 
-// 生成卡通图（Seedream 5.0 图生图）
+// 生成卡通图（Seedream 5.0 Lite 图生图）
 async function generateCartoon(imageBase64: string, prompt: string): Promise<string> {
   if (!ARK_API_KEY) {
     throw new Error('未配置 ARK_API_KEY');
   }
 
   const requestBody = {
-    model: "doubao-seedream-5-0-pro-260628",
+    model: "doubao-seedream-5-0-260128",
     prompt: prompt,
     image: imageBase64,  // 传入原图作为参考（支持 data: URL 或 Base64）
     response_format: "b64_json",
     size: "1024x1024",
   };
 
-  console.log('调用 Seedream 5.0 图生图 API...');
+  console.log('调用 Seedream 5.0 Lite 图生图 API...');
   
   const response = await fetch(ARK_ENDPOINT, {
     method: 'POST',

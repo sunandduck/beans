@@ -54,7 +54,7 @@ async function generateCartoon(imageBase64: string, prompt: string): Promise<str
     prompt: prompt,
     image: imageBase64,  // 传入原图作为参考（支持 data: URL 或 Base64）
     response_format: "b64_json",
-    size: "1024x1024",
+    size: "2048x2048",
   };
 
   console.log('调用 Seedream 5.0 Lite 图生图 API...');

@@ -49,7 +49,7 @@ export default function BeadMode({ metadata, onClose }: BeadModeProps) {
     if (!ctx) return;
 
     const { width, height, beads } = metadata;
-    const cellSize = Math.max(20, Math.floor(40 / scale));
+    const cellSize = Math.max(8, Math.floor(20 * scale));
 
     // 设置画布大小
     canvas.width = width * cellSize;

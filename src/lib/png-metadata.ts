@@ -144,7 +144,9 @@ export async function embedMetadataToPNG(
 
   // 转换回 dataURL
   const newBase64 = btoa(String.fromCharCode(...newBytes));
-  return `data:image/png;base64,${newBase64}`;
+  const result = `data:image/png;base64,${newBase64}`;
+  console.log("[Embed] 嵌入完成，新 PNG 大小:", result.length);
+  return result;
 }
 
 /**

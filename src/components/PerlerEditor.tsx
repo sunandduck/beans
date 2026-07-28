@@ -521,7 +521,7 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
           ref={containerRef}
           className="flex-1 overflow-auto bg-[#FAF8F5] p-2 md:p-4"
           style={{ 
-            cursor: isDrawing ? "crosshair" : isDragging ? "grabbing" : "grab",
+            cursor: isDrawing ? "crosshair" : "grab",
             touchAction: "none"
           }}
         >

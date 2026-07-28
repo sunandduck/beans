@@ -276,6 +276,10 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
         <div className="flex items-center gap-3">
           <h2 className="font-pixel text-sm text-[#2D2A26]">编辑图纸</h2>
           {isModified && <span className="text-xs text-[#E8734A]">● 已修改</span>}
+          {/* 移动端提示：PC 端编辑更方便 */}
+          <div className="md:hidden text-[10px] text-[#6BA3D6] ml-2">
+            💡 PC 端编辑更方便，推荐访问 {typeof window !== 'undefined' ? window.location.origin : ''}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -405,7 +409,10 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
           {/* 移动端：横向滚动色号条 */}
           <div className="md:hidden">
             <div className="px-3 py-2 border-b border-[#E8E4DF] flex items-center justify-between">
-              <h3 className="font-pixel text-[10px] text-[#2D2A26]">选择颜色</h3>
+              <div className="flex items-center gap-2">
+                <h3 className="font-pixel text-[10px] text-[#2D2A26]">选择颜色</h3>
+                <span className="text-[9px] text-[#7A756E]">← 左右滑动 →</span>
+              </div>
               {selectedColor && (
                 <div className="flex items-center gap-1.5">
                   <div

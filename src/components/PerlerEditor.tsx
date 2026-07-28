@@ -122,13 +122,17 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
 
       const canvas = canvasRef.current;
       const rect = canvas.getBoundingClientRect();
+      
+      // 计算相对于画布左上角的坐标（考虑 CSS transform 缩放）
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
 
-      // 计算点击的格子坐标
-      const cellSize = Math.max(4, Math.min(20, Math.floor(400 / pattern.width) * zoom));
-      const col = Math.floor((x - offset.x) / cellSize);
-      const row = Math.floor((y - offset.y) / cellSize);
+      // 计算基础格子大小（与渲染时一致）
+      const baseCellSize = Math.max(4, Math.min(20, Math.floor(400 / pattern.width)));
+      
+      // 计算点击的格子坐标（rect 已经包含了 transform 的影响）
+      const col = Math.floor(x / baseCellSize);
+      const row = Math.floor(y / baseCellSize);
 
       if (row >= 0 && row < pattern.height && col >= 0 && col < pattern.width) {
         const newBeads = [...beads];
@@ -142,7 +146,7 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
         saveHistory(newBeads);
       }
     },
-    [selectedColor, beads, pattern, zoom, offset, saveHistory]
+    [selectedColor, beads, pattern, saveHistory]
   );
 
   // 渲染画布
@@ -273,13 +277,9 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
     <div className="fixed inset-0 z-50 bg-[#FAF8F5] flex flex-col">
       {/* 顶部工具栏 */}
       <header className="bg-white border-b-3 border-[#E8E4DF] px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <h2 className="font-pixel text-sm text-[#2D2A26]">编辑图纸</h2>
           {isModified && <span className="text-xs text-[#E8734A]">● 已修改</span>}
-          {/* 移动端提示：PC 端编辑更方便 */}
-          <div className="md:hidden text-[10px] text-[#6BA3D6] ml-2">
-            💡 PC 端编辑更方便，推荐访问 {typeof window !== 'undefined' ? window.location.origin : ''}
-          </div>
         </div>
         <div className="flex items-center gap-2">
           <button

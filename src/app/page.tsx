@@ -233,8 +233,10 @@ export default function Home() {
 
         // 提取元数据
         const metadata = await extractMetadata(dataUrl);
+        console.log("[Import] 提取的元数据:", metadata);
 
         if (!metadata) {
+          console.log("[Import] 元数据为空，不是本工具生成的图纸");
           setError("这不是本工具生成的图纸，无法导入");
           return;
         }

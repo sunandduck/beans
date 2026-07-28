@@ -40,6 +40,7 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
   const [isDrawing, setIsDrawing] = useState(false);
   const [isSpacePressed, setIsSpacePressed] = useState(false); // Space 键按下状态
   const [editMode, setEditMode] = useState<"draw" | "move">("move"); // 编辑模式：绘制/移动
+  const [showSaveConfirm, setShowSaveConfirm] = useState(false); // 保存确认对话框
 
   // 获取当前图纸使用的色号
   const usedColors = Object.keys(pattern.colorStats)
@@ -492,20 +493,12 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
               <ZoomIn className="w-4 h-4" />
             </button>
             <span className="text-[10px] text-[#7A756E] ml-2">
-              💡 移动端双指操作拖动图纸，选中颜色后可批量修改色块
+              💡 移动端双指操作拖动图纸，选中颜色单指拖动可批量修改色块
             </span>
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={handleDownload}
-              className="px-3 py-1.5 bg-[#7BC8B0] hover:bg-[#6AB8A0] text-white font-pixel text-[10px] flex items-center gap-1"
-              style={{ borderWidth: 2, borderColor: "#2D2A26", boxShadow: "2px 2px 0 #2D2A26" }}
-            >
-              <Download className="w-3 h-3" />
-              下载
-            </button>
-            <button
-              onClick={handleSave}
+              onClick={() => setShowSaveConfirm(true)}
               disabled={!isModified}
               className="px-3 py-1.5 bg-[#E8734A] hover:bg-[#D4623B] text-white font-pixel text-[10px] flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ borderWidth: 2, borderColor: "#2D2A26", boxShadow: "2px 2px 0 #2D2A26" }}
@@ -664,6 +657,37 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
           </div>
         </aside>
       </div>
+
+      {/* 保存确认对话框 */}
+      {showSaveConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white border-4 border-[#E8734A] p-6 max-w-sm w-full" style={{ boxShadow: "4px 4px 0 #2D2A26" }}>
+            <h3 className="font-pixel text-sm text-[#2D2A26] mb-4">确认保存</h3>
+            <p className="text-sm text-[#2D2A26] mb-6">
+              保存之后原图纸<strong className="text-red-600 font-bold">不可恢复</strong>，是否确定要保存？
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowSaveConfirm(false)}
+                className="px-4 py-2 bg-[#FAF8F5] hover:bg-[#E8E4DF] text-[#2D2A26] font-pixel text-[10px] border-2 border-[#E8E4DF]"
+                style={{ borderWidth: 2 }}
+              >
+                取消
+              </button>
+              <button
+                onClick={() => {
+                  handleSave();
+                  setShowSaveConfirm(false);
+                }}
+                className="px-4 py-2 bg-[#E8734A] hover:bg-[#D4623B] text-white font-pixel text-[10px] border-2 border-[#2D2A26]"
+                style={{ borderWidth: 2, boxShadow: "2px 2px 0 #2D2A26" }}
+              >
+                确定保存
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

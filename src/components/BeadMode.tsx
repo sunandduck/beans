@@ -138,13 +138,35 @@ export default function BeadMode({ metadata, onClose }: BeadModeProps) {
     setSelectedColor(selectedColor === code ? null : code);
   };
 
-  // 处理缩放
+  // 处理缩放（以视图中心为基准点）
   const handleZoomIn = () => {
-    setScale((prev) => Math.min(prev * 1.2, 5));
+    setScale((prev) => {
+      const newScale = Math.min(prev * 1.2, 5);
+      // 调整 offset 以保持视图中心不变
+      setOffset((prevOffset) => {
+        const scaleRatio = newScale / prev;
+        return {
+          x: prevOffset.x * scaleRatio,
+          y: prevOffset.y * scaleRatio,
+        };
+      });
+      return newScale;
+    });
   };
 
   const handleZoomOut = () => {
-    setScale((prev) => Math.max(prev / 1.2, 0.3));
+    setScale((prev) => {
+      const newScale = Math.max(prev / 1.2, 0.3);
+      // 调整 offset 以保持视图中心不变
+      setOffset((prevOffset) => {
+        const scaleRatio = newScale / prev;
+        return {
+          x: prevOffset.x * scaleRatio,
+          y: prevOffset.y * scaleRatio,
+        };
+      });
+      return newScale;
+    });
   };
 
   const handleReset = () => {

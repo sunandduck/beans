@@ -780,18 +780,13 @@ export async function downloadPatternImage(
 ): Promise<void> {
   const dataURL = generatePatternImage(pattern, cellSize, showColorCode);
 
-  // 创建元数据
-  const beads = [];
+  // 创建元数据（只存储色号序列）
+  const beads: string[] = [];
   for (let row = 0; row < pattern.height; row++) {
     for (let col = 0; col < pattern.width; col++) {
       const bead = pattern.beads.find(b => b.row === row && b.col === col);
       const colorCode = bead?.color?.code || "";
-      beads.push({
-        col,
-        row,
-        colorCode: colorCode || "",
-        isEmpty: !colorCode,
-      });
+      beads.push(colorCode);
     }
   }
 

@@ -33,12 +33,7 @@ export interface PerlerMetadata {
   version: string; // 版本号
   width: number; // 图纸宽度（像素格数）
   height: number; // 图纸高度（像素格数）
-  beads: Array<{
-    col: number;
-    row: number;
-    colorCode: string; // MARD 色号
-    isEmpty: boolean;
-  }>;
+  beads: string[]; // 色号序列（按行优先顺序，长度 = width * height）
 }
 
 /**
@@ -249,7 +244,7 @@ export async function extractMetadataFromPNG(
 export function createPerlerMetadata(
   width: number,
   height: number,
-  beads: Array<{ col: number; row: number; colorCode: string; isEmpty: boolean }>
+  beads: string[]
 ): PerlerMetadata {
   return {
     version: "1.0",

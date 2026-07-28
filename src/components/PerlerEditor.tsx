@@ -316,55 +316,54 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
         </div>
       </header>
 
-      <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
-        {/* 画布区域 — 移动端优先，占据主要空间 */}
-        <main className="flex-1 flex flex-col overflow-hidden order-1 md:order-2">
-          {/* 缩放控制 + 操作按钮 */}
-          <div className="bg-white border-b-2 border-[#E8E4DF] px-3 py-2 flex items-center justify-between flex-shrink-0">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setZoom((prev: number) => Math.max(0.5, prev - 0.1))}
-                className="w-8 h-8 flex items-center justify-center bg-[#FAF8F5] border-2 border-[#E8E4DF] hover:border-[#E8734A]"
-                style={{ borderWidth: 2 }}
-              >
-                <ZoomOut className="w-4 h-4" />
-              </button>
-              <span className="font-pixel text-xs text-[#2D2A26] w-14 text-center">
-                {Math.round(zoom * 100)}%
-              </span>
-              <button
-                onClick={() => setZoom((prev: number) => Math.min(3, prev + 0.1))}
-                className="w-8 h-8 flex items-center justify-center bg-[#FAF8F5] border-2 border-[#E8E4DF] hover:border-[#E8734A]"
-                style={{ borderWidth: 2 }}
-              >
-                <ZoomIn className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleDownload}
-                className="px-3 py-1.5 bg-[#7BC8B0] hover:bg-[#6AB8A0] text-white font-pixel text-[10px] flex items-center gap-1"
-                style={{ borderWidth: 2, borderColor: "#2D2A26", boxShadow: "2px 2px 0 #2D2A26" }}
-              >
-                <Download className="w-3 h-3" />
-                下载
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={!isModified}
-                className="px-3 py-1.5 bg-[#E8734A] hover:bg-[#D4623B] text-white font-pixel text-[10px] flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ borderWidth: 2, borderColor: "#2D2A26", boxShadow: "2px 2px 0 #2D2A26" }}
-              >
-                <Check className="w-3 h-3" />
-                保存
-              </button>
-            </div>
+      {/* 主内容区 — 操作区和图纸区分开 */}
+      <div className="flex flex-col flex-1 overflow-hidden">
+        {/* 操作区 — 固定不缩放 */}
+        <div className="flex-shrink-0 bg-white border-b-2 border-[#E8E4DF] px-3 py-2 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setZoom((prev: number) => Math.max(0.5, prev - 0.1))}
+              className="w-8 h-8 flex items-center justify-center bg-[#FAF8F5] border-2 border-[#E8E4DF] hover:border-[#E8734A]"
+              style={{ borderWidth: 2 }}
+            >
+              <ZoomOut className="w-4 h-4" />
+            </button>
+            <span className="font-pixel text-xs text-[#2D2A26] w-14 text-center">
+              {Math.round(zoom * 100)}%
+            </span>
+            <button
+              onClick={() => setZoom((prev: number) => Math.min(3, prev + 0.1))}
+              className="w-8 h-8 flex items-center justify-center bg-[#FAF8F5] border-2 border-[#E8E4DF] hover:border-[#E8734A]"
+              style={{ borderWidth: 2 }}
+            >
+              <ZoomIn className="w-4 h-4" />
+            </button>
           </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleDownload}
+              className="px-3 py-1.5 bg-[#7BC8B0] hover:bg-[#6AB8A0] text-white font-pixel text-[10px] flex items-center gap-1"
+              style={{ borderWidth: 2, borderColor: "#2D2A26", boxShadow: "2px 2px 0 #2D2A26" }}
+            >
+              <Download className="w-3 h-3" />
+              下载
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={!isModified}
+              className="px-3 py-1.5 bg-[#E8734A] hover:bg-[#D4623B] text-white font-pixel text-[10px] flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ borderWidth: 2, borderColor: "#2D2A26", boxShadow: "2px 2px 0 #2D2A26" }}
+            >
+              <Check className="w-3 h-3" />
+              保存
+            </button>
+          </div>
+        </div>
 
-          {/* 画布容器 */}
-          <div
-            ref={containerRef}
-            className="flex-1 overflow-auto bg-[#FAF8F5] p-2 md:p-4"
+        {/* 图纸区 — 独立缩放，可滚动 */}
+        <div
+          ref={containerRef}
+          className="flex-1 overflow-auto bg-[#FAF8F5] p-2 md:p-4"
             style={{ cursor: selectedColor ? "crosshair" : isDragging ? "grabbing" : "grab" }}
           >
             <div
@@ -400,7 +399,6 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
               />
             </div>
           </div>
-        </main>
 
         {/* 色号选择器 — 移动端底部横条，桌面端左侧边栏 */}
         <aside className="order-2 md:order-1 md:w-64 bg-white md:border-r-2 border-t-2 md:border-t-0 border-[#E8E4DF] flex-shrink-0">

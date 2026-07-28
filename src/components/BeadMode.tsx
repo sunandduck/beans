@@ -40,6 +40,11 @@ export default function BeadMode({ metadata, onClose }: BeadModeProps) {
     setUsedColors(colors);
   }, [metadata]);
 
+  // 获取指定色号的数量
+  const getColorCount = (colorCode: string) => {
+    return metadata.beads.filter(b => b === colorCode).length;
+  };
+
   // 绘制图纸
   const drawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -50,10 +55,11 @@ export default function BeadMode({ metadata, onClose }: BeadModeProps) {
 
     const { width, height, beads } = metadata;
     const cellSize = Math.max(8, Math.floor(20 * scale));
+    const axisSize = cellSize * 1.5; // 坐标轴宽度
 
-    // 设置画布大小
-    canvas.width = width * cellSize;
-    canvas.height = height * cellSize;
+    // 设置画布大小（包含坐标轴）
+    canvas.width = width * cellSize + axisSize;
+    canvas.height = height * cellSize + axisSize;
 
     // 清空画布
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -62,12 +68,17 @@ export default function BeadMode({ metadata, onClose }: BeadModeProps) {
     ctx.fillStyle = "#FFFFFF";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // 绘制像素格
+    // 绘制坐标轴背景
+    ctx.fillStyle = "#F8F8F8";
+    ctx.fillRect(0, 0, axisSize, canvas.height); // 左侧坐标轴
+    ctx.fillRect(0, 0, canvas.width, axisSize); // 顶部坐标轴
+
+    // 绘制像素格（偏移坐标轴空间）
     metadata.beads.forEach((colorCode, index) => {
       const col = index % width;
       const row = Math.floor(index / width);
-      const x = col * cellSize;
-      const y = row * cellSize;
+      const x = axisSize + col * cellSize;
+      const y = axisSize + row * cellSize;
 
       if (!colorCode) {
         // 空白格
@@ -109,6 +120,25 @@ export default function BeadMode({ metadata, onClose }: BeadModeProps) {
         }
       }
     });
+
+    // 绘制坐标轴数字
+    ctx.fillStyle = "#666666";
+    ctx.font = `${Math.max(8, cellSize / 2.5)}px monospace`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    // 顶部坐标轴（列号）
+    for (let col = 0; col < width; col++) {
+      const x = axisSize + col * cellSize + cellSize / 2;
+      ctx.fillText(String(col + 1), x, axisSize / 2);
+    }
+
+    // 左侧坐标轴（行号）
+    ctx.textAlign = "right";
+    for (let row = 0; row < height; row++) {
+      const y = axisSize + row * cellSize + cellSize / 2;
+      ctx.fillText(String(row + 1), axisSize / 2, y);
+    }
 
     // 绘制网格线
     if (!selectedColor) {
@@ -307,7 +337,7 @@ export default function BeadMode({ metadata, onClose }: BeadModeProps) {
             <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-[#2D2A26] text-white px-4 py-2 text-xs font-bold"
               style={{ fontFamily: "'Press Start 2P', monospace", boxShadow: "4px 4px 0 #000" }}>
               高亮：{getColorInfo(selectedColor)?.code} {getColorInfo(selectedColor)?.name}
-              <span className="ml-2 text-[#FFD700]">({metadata.beads.filter(b => b.colorCode === selectedColor).length} 格)</span>
+              <span className="ml-2 text-[#FFD700]">({getColorCount(selectedColor)} 格)</span>
             </div>
           )}
         </div>

@@ -625,13 +625,14 @@ export function generatePatternImage(
   const topPadding = 60;
   const leftPadding = 60;
 
-  // 计算色号清单所需高度
+  // 计算色号清单所需高度和宽度
   const colorCount = Object.keys(pattern.colorStats).length;
   const legendMaxPerRow = 8;
   const colorRows = Math.ceil(colorCount / legendMaxPerRow);
   const colorListHeight = colorRows > 0 ? 30 + colorRows * 40 + 20 : 0;
+  const colorListWidth = legendMaxPerRow * 100; // 每行最多 8 个，每个 100px
 
-  canvas.width = pattern.width * cellSize + leftPadding + padding;
+  canvas.width = Math.max(pattern.width * cellSize + leftPadding + padding, colorListWidth + leftPadding + padding);
   canvas.height = pattern.height * cellSize + topPadding + padding + colorListHeight;
 
   const ctx = canvas.getContext("2d")!;

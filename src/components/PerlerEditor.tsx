@@ -394,10 +394,27 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
         e.touches[0].clientY - e.touches[1].clientY
       );
       const scale = distance / lastTouchDistance.current;
-      setZoom((prev) => Math.max(0.5, Math.min(3, prev * scale)));
+
+      // 以双指中心为基准点缩放
+      const rect = containerRef.current.getBoundingClientRect();
+      const centerX = rect.width / 2;
+      const centerY = rect.height / 2;
+
+      // 计算中心点对应的图纸坐标
+      const paperX = (centerX - offset.x) / zoom;
+      const paperY = (centerY - offset.y) / zoom;
+
+      // 缩放后，调整 offset 使得该点仍在中心
+      const newZoom = Math.max(0.5, Math.min(3, zoom * scale));
+      setZoom(newZoom);
+      setOffset({
+        x: centerX - paperX * newZoom,
+        y: centerY - paperY * newZoom,
+      });
+
       lastTouchDistance.current = distance;
     }
-  }, []);
+  }, [zoom, offset]);
 
   const handleTouchEndZoom = useCallback(() => {
     lastTouchDistance.current = null;

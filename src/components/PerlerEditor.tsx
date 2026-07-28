@@ -550,18 +550,9 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
                 onMouseLeave={handleMouseUp}
-                onTouchStart={(e) => {
-                  handleTouchStart(e);
-                  handleTouchStartZoom(e);
-                }}
-                onTouchMove={(e) => {
-                  handleTouchMove(e);
-                  handleTouchMoveZoom(e);
-                }}
-                onTouchEnd={(e) => {
-                  handleTouchEnd(e);
-                  handleTouchEndZoom();
-                }}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
                 style={{
                   border: "3px solid #E8E4DF",
                   imageRendering: "pixelated",

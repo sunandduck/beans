@@ -30,5 +30,5 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", "dist", "perler-bead-download", "perler-bead-server"]
+  "exclude": ["node_modules", "dist", "perler-bead-download", "perler-bead-server", "src/components/ui"]
 }

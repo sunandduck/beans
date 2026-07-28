@@ -1,0 +1,470 @@
+"use client";
+
+import { useState, useRef, useCallback, useEffect } from "react";
+import { X, ZoomIn, ZoomOut, Undo2, Redo2, Download, RotateCcw, Check } from "lucide-react";
+import {
+  type PerlerPattern,
+  type PerlerBead,
+  type MardColor,
+  MARD_221_PALETTE,
+  renderPattern,
+  generatePatternImage,
+} from "@/lib/perler-engine-simple";
+
+interface PerlerEditorProps {
+  pattern: PerlerPattern;
+  onClose: () => void;
+  onSave: (modifiedPattern: PerlerPattern) => void;
+}
+
+interface EditorState {
+  beads: PerlerBead[];
+  history: PerlerBead[][];
+  historyIndex: number;
+}
+
+export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorProps) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // 编辑器状态
+  const [beads, setBeads] = useState<PerlerBead[]>(pattern.beads);
+  const [history, setHistory] = useState<PerlerBead[][]>([pattern.beads]);
+  const [historyIndex, setHistoryIndex] = useState(0);
+  const [selectedColor, setSelectedColor] = useState<MardColor | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [isModified, setIsModified] = useState(false);
+
+  // 获取当前图纸使用的色号
+  const usedColors = Object.keys(pattern.colorStats)
+    .map((code) => MARD_221_PALETTE.find((c) => c.code === code))
+    .filter((c): c is MardColor => c !== undefined);
+
+  // 保存历史状态
+  const saveHistory = useCallback(
+    (newBeads: PerlerBead[]) => {
+      const newHistory = history.slice(0, historyIndex + 1);
+      newHistory.push(newBeads);
+      setHistory(newHistory);
+      setHistoryIndex(newHistory.length - 1);
+      setIsModified(true);
+    },
+    [history, historyIndex]
+  );
+
+  // 撤销
+  const handleUndo = useCallback(() => {
+    if (historyIndex > 0) {
+      const newIndex = historyIndex - 1;
+      setHistoryIndex(newIndex);
+      setBeads(history[newIndex]);
+    }
+  }, [historyIndex, history]);
+
+  // 重做
+  const handleRedo = useCallback(() => {
+    if (historyIndex < history.length - 1) {
+      const newIndex = historyIndex + 1;
+      setHistoryIndex(newIndex);
+      setBeads(history[newIndex]);
+    }
+  }, [historyIndex, history]);
+
+  // 清空修改（还原）
+  const handleReset = useCallback(() => {
+    setBeads(pattern.beads);
+    setHistory([pattern.beads]);
+    setHistoryIndex(0);
+    setIsModified(false);
+  }, [pattern.beads]);
+
+  // 保存并下载
+  const handleSave = useCallback(() => {
+    const modifiedPattern: PerlerPattern = {
+      ...pattern,
+      beads,
+      colorStats: beads.reduce((stats: Record<string, number>, bead: PerlerBead) => {
+        if (!bead.isEmpty) {
+          stats[bead.color.code] = (stats[bead.color.code] || 0) + 1;
+        }
+        return stats;
+      }, {} as Record<string, number>),
+    };
+    onSave(modifiedPattern);
+  }, [pattern, beads, onSave]);
+
+  // 下载修改后的图纸
+  const handleDownload = useCallback(() => {
+    const modifiedPattern: PerlerPattern = {
+      ...pattern,
+      beads,
+      colorStats: beads.reduce((stats: Record<string, number>, bead: PerlerBead) => {
+        if (!bead.isEmpty) {
+          stats[bead.color.code] = (stats[bead.color.code] || 0) + 1;
+        }
+        return stats;
+      }, {} as Record<string, number>),
+    };
+    const dataURL = generatePatternImage(modifiedPattern);
+    const link = document.createElement("a");
+    link.download = `perler-pattern-edited-${modifiedPattern.width}x${modifiedPattern.height}.png`;
+    link.href = dataURL;
+    link.click();
+  }, [pattern, beads]);
+
+  // 点击像素块修改颜色
+  const handleCanvasClick = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement>) => {
+      if (!selectedColor || !canvasRef.current) return;
+
+      const canvas = canvasRef.current;
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      // 计算点击的格子坐标
+      const cellSize = Math.max(4, Math.min(20, Math.floor(400 / pattern.width) * zoom));
+      const col = Math.floor((x - offset.x) / cellSize);
+      const row = Math.floor((y - offset.y) / cellSize);
+
+      if (row >= 0 && row < pattern.height && col >= 0 && col < pattern.width) {
+        const newBeads = [...beads];
+        const index = row * pattern.width + col;
+        newBeads[index] = {
+          ...newBeads[index],
+          color: selectedColor,
+          isEmpty: false,
+        };
+        setBeads(newBeads);
+        saveHistory(newBeads);
+      }
+    },
+    [selectedColor, beads, pattern, zoom, offset, saveHistory]
+  );
+
+  // 渲染画布
+  useEffect(() => {
+    if (!canvasRef.current) return;
+
+    const canvas = canvasRef.current;
+    const cellSize = Math.max(4, Math.min(20, Math.floor(400 / pattern.width) * zoom));
+    canvas.width = pattern.width * cellSize;
+    canvas.height = pattern.height * cellSize;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    // 清空画布
+    ctx.fillStyle = "#FAF8F5";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // 绘制网格
+    ctx.strokeStyle = "#E8E4DF";
+    ctx.lineWidth = 0.5;
+
+    for (let row = 0; row < pattern.height; row++) {
+      for (let col = 0; col < pattern.width; col++) {
+        const bead = beads[row * pattern.width + col];
+        const x = col * cellSize;
+        const y = row * cellSize;
+
+        // 绘制格子
+        if (!bead.isEmpty) {
+          ctx.fillStyle = bead.color.hex;
+          ctx.fillRect(x, y, cellSize, cellSize);
+        }
+
+        // 绘制网格线
+        ctx.strokeRect(x, y, cellSize, cellSize);
+      }
+    }
+  }, [beads, pattern, zoom]);
+
+  // 鼠标拖拽事件
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement>) => {
+      if (!selectedColor) {
+        setIsDragging(true);
+        setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
+      }
+    },
+    [selectedColor, offset]
+  );
+
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement>) => {
+      if (isDragging) {
+        setOffset({
+          x: e.clientX - dragStart.x,
+          y: e.clientY - dragStart.y,
+        });
+      }
+    },
+    [isDragging, dragStart]
+  );
+
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  // 触摸事件（移动端）
+  const handleTouchStart = useCallback(
+    (e: React.TouchEvent) => {
+      if (e.touches.length === 1 && !selectedColor) {
+        setIsDragging(true);
+        setDragStart({
+          x: e.touches[0].clientX - offset.x,
+          y: e.touches[0].clientY - offset.y,
+        });
+      }
+    },
+    [selectedColor, offset]
+  );
+
+  const handleTouchMove = useCallback(
+    (e: React.TouchEvent) => {
+      if (isDragging && e.touches.length === 1) {
+        setOffset({
+          x: e.touches[0].clientX - dragStart.x,
+          y: e.touches[0].clientY - dragStart.y,
+        });
+      }
+    },
+    [isDragging, dragStart]
+  );
+
+  const handleTouchEnd = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  // 双指缩放
+  const lastTouchDistance = useRef<number | null>(null);
+
+  const handleTouchStartZoom = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      const distance = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      lastTouchDistance.current = distance;
+    }
+  }, []);
+
+  const handleTouchMoveZoom = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 2 && lastTouchDistance.current !== null) {
+      const distance = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      const scale = distance / lastTouchDistance.current;
+      setZoom((prev) => Math.max(0.5, Math.min(3, prev * scale)));
+      lastTouchDistance.current = distance;
+    }
+  }, []);
+
+  const handleTouchEndZoom = useCallback(() => {
+    lastTouchDistance.current = null;
+  }, []);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-[#FAF8F5] flex flex-col">
+      {/* 顶部工具栏 */}
+      <header className="bg-white border-b-3 border-[#E8E4DF] px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <h2 className="font-pixel text-sm text-[#2D2A26]">编辑图纸</h2>
+          {isModified && <span className="text-xs text-[#E8734A]">● 已修改</span>}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleUndo}
+            disabled={historyIndex === 0}
+            className="w-8 h-8 flex items-center justify-center bg-[#FAF8F5] border-2 border-[#E8E4DF] hover:border-[#E8734A] disabled:opacity-30 disabled:cursor-not-allowed"
+            style={{ borderWidth: 2 }}
+            title="撤销"
+          >
+            <Undo2 className="w-4 h-4" />
+          </button>
+          <button
+            onClick={handleRedo}
+            disabled={historyIndex >= history.length - 1}
+            className="w-8 h-8 flex items-center justify-center bg-[#FAF8F5] border-2 border-[#E8E4DF] hover:border-[#E8734A] disabled:opacity-30 disabled:cursor-not-allowed"
+            style={{ borderWidth: 2 }}
+            title="重做"
+          >
+            <Redo2 className="w-4 h-4" />
+          </button>
+          <button
+            onClick={handleReset}
+            disabled={!isModified}
+            className="w-8 h-8 flex items-center justify-center bg-[#FAF8F5] border-2 border-[#E8E4DF] hover:border-[#E8734A] disabled:opacity-30 disabled:cursor-not-allowed"
+            style={{ borderWidth: 2 }}
+            title="还原"
+          >
+            <RotateCcw className="w-4 h-4" />
+          </button>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center bg-[#FAF8F5] border-2 border-[#E8E4DF] hover:border-red-400"
+            style={{ borderWidth: 2 }}
+            title="关闭"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      </header>
+
+      <div className="flex flex-1 overflow-hidden">
+        {/* 左侧色号选择器 */}
+        <aside className="w-64 bg-white border-r-3 border-[#E8E4DF] overflow-y-auto">
+          <div className="p-4">
+            <h3 className="font-pixel text-xs text-[#2D2A26] mb-3">选择颜色</h3>
+            <div className="space-y-2">
+              {usedColors.map((color) => (
+                <button
+                  key={color.code}
+                  onClick={() => setSelectedColor(color)}
+                  className={`w-full flex items-center gap-2 p-2 border-2 transition-all ${
+                    selectedColor?.code === color.code
+                      ? "border-[#E8734A] bg-orange-50"
+                      : "border-[#E8E4DF] hover:border-[#E8734A]/50"
+                  }`}
+                  style={{ borderWidth: 2 }}
+                >
+                  <div
+                    className="w-8 h-8 flex-shrink-0"
+                    style={{ backgroundColor: color.hex, border: "2px solid #E8E4DF" }}
+                  />
+                  <div className="flex-1 text-left min-w-0">
+                    <p className="font-pixel text-[8px] text-[#2D2A26]">{color.code}</p>
+                    <p className="text-[10px] text-[#7A756E] truncate">{color.name}</p>
+                  </div>
+                  {selectedColor?.code === color.code && (
+                    <Check className="w-4 h-4 text-[#E8734A]" />
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {selectedColor && (
+              <div className="mt-4 p-3 bg-[#FAF8F5] border-2 border-[#E8E4DF]">
+                <p className="font-pixel text-[8px] text-[#7A756E] mb-1">当前选中</p>
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-10 h-10"
+                    style={{ backgroundColor: selectedColor.hex, border: "2px solid #E8E4DF" }}
+                  />
+                  <div>
+                    <p className="font-pixel text-[10px] text-[#2D2A26]">{selectedColor.code}</p>
+                    <p className="text-xs text-[#7A756E]">{selectedColor.name}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="mt-4 p-3 bg-blue-50 border-2 border-blue-200">
+              <p className="text-xs text-blue-700">
+                <strong>提示：</strong>
+                <br />
+                1. 选择颜色
+                <br />
+                2. 点击格子修改
+                <br />
+                3. 拖拽移动画布
+                <br />
+                4. 双指缩放（移动端）
+              </p>
+            </div>
+          </div>
+        </aside>
+
+        {/* 中间画布区域 */}
+        <main className="flex-1 flex flex-col overflow-hidden">
+          {/* 缩放控制 */}
+          <div className="bg-white border-b-2 border-[#E8E4DF] px-4 py-2 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setZoom((prev: number) => Math.max(0.5, prev - 0.1))}
+                className="w-8 h-8 flex items-center justify-center bg-[#FAF8F5] border-2 border-[#E8E4DF] hover:border-[#E8734A]"
+                style={{ borderWidth: 2 }}
+              >
+                <ZoomOut className="w-4 h-4" />
+              </button>
+              <span className="font-pixel text-xs text-[#2D2A26] w-16 text-center">
+                {Math.round(zoom * 100)}%
+              </span>
+              <button
+                onClick={() => setZoom((prev: number) => Math.min(3, prev + 0.1))}
+                className="w-8 h-8 flex items-center justify-center bg-[#FAF8F5] border-2 border-[#E8E4DF] hover:border-[#E8734A]"
+                style={{ borderWidth: 2 }}
+              >
+                <ZoomIn className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleDownload}
+                className="px-3 py-1.5 bg-[#7BC8B0] hover:bg-[#6AB8A0] text-white font-pixel text-[10px] flex items-center gap-1"
+                style={{ borderWidth: 2, borderColor: "#2D2A26", boxShadow: "2px 2px 0 #2D2A26" }}
+              >
+                <Download className="w-3 h-3" />
+                下载
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={!isModified}
+                className="px-3 py-1.5 bg-[#E8734A] hover:bg-[#D4623B] text-white font-pixel text-[10px] flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ borderWidth: 2, borderColor: "#2D2A26", boxShadow: "2px 2px 0 #2D2A26" }}
+              >
+                <Check className="w-3 h-3" />
+                保存
+              </button>
+            </div>
+          </div>
+
+          {/* 画布容器 */}
+          <div
+            ref={containerRef}
+            className="flex-1 overflow-auto bg-[#FAF8F5] p-4"
+            style={{ cursor: selectedColor ? "crosshair" : isDragging ? "grabbing" : "grab" }}
+          >
+            <div
+              style={{
+                transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
+                transformOrigin: "0 0",
+              }}
+            >
+              <canvas
+                ref={canvasRef}
+                onClick={handleCanvasClick}
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseUp}
+                onTouchStart={(e) => {
+                  handleTouchStart(e);
+                  handleTouchStartZoom(e);
+                }}
+                onTouchMove={(e) => {
+                  handleTouchMove(e);
+                  handleTouchMoveZoom(e);
+                }}
+                onTouchEnd={() => {
+                  handleTouchEnd();
+                  handleTouchEndZoom();
+                }}
+                style={{
+                  border: "3px solid #E8E4DF",
+                  imageRendering: "pixelated",
+                  backgroundColor: "#FAF8F5",
+                }}
+              />
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+  );
+}

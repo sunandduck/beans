@@ -22,6 +22,7 @@ import {
   type PerlerPattern,
   type MardColor,
 } from "@/lib/perler-engine-simple";
+import PerlerEditor from "@/components/PerlerEditor";
 
 // 自动生成 5 种尺寸（长边格数）
 const SIZE_OPTIONS = [40, 60, 100, 130, 150] as const;
@@ -58,6 +59,8 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState<"upload" | "settings" | "result">("upload");
   const [previewImage, setPreviewImage] = useState<string | null>(null); // 图纸预览弹窗
+  const [isEditing, setIsEditing] = useState(false); // 编辑模式
+  const [editedPatterns, setEditedPatterns] = useState<{ [key: number]: PerlerPattern }>({}); // 编辑后的图纸
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -102,7 +105,7 @@ export default function Home() {
         
         // 模拟进度：从 20% 缓慢增长到 55%，模拟 45 秒的 AI 处理时间
         const progressInterval = setInterval(() => {
-          setProgress((prev) => {
+          setProgress((prev: number) => {
             if (prev >= 55) {
               clearInterval(progressInterval);
               return 55;
@@ -169,6 +172,7 @@ export default function Home() {
   const handleProcessPattern = async (imageUrl: string) => {
     setIsProcessing(true);
     setPatterns([]);
+    setEditedPatterns({}); // 清空编辑记录
     
     try {
       const results: { size: number; pattern: PerlerPattern }[] = [];
@@ -199,8 +203,19 @@ export default function Home() {
     }
   };
 
+  // 保存编辑后的图纸
+  const handleSaveEdit = useCallback((size: number, modifiedPattern: PerlerPattern) => {
+    setEditedPatterns((prev: { [key: number]: PerlerPattern }) => ({ ...prev, [size]: modifiedPattern }));
+    setIsEditing(false);
+  }, []);
+
+  // 获取当前显示的图纸（优先使用编辑后的）
+  const currentPattern = patterns[selectedPatternIdx]?.pattern;
+  const currentSize = patterns[selectedPatternIdx]?.size;
+  const displayPattern = editedPatterns[currentSize] || currentPattern;
+
   useEffect(() => {
-    const current = patterns[selectedPatternIdx]?.pattern ?? null;
+    const current = displayPattern ?? null;
     console.log('[Page] Pattern 变化:', current ? `${current.width}x${current.height}` : 'null');
     
     const renderCanvas = () => {
@@ -230,7 +245,7 @@ export default function Home() {
     renderCanvas();
     window.addEventListener("resize", renderCanvas);
     return () => window.removeEventListener("resize", renderCanvas);
-  }, [patterns, selectedPatternIdx]);
+  }, [patterns, selectedPatternIdx, displayPattern]);
 
   return (
     <div className="min-h-screen bg-[#FAF8F5]">
@@ -505,7 +520,7 @@ export default function Home() {
               <div className="space-y-4">
                 {/* Size tabs */}
                 <div className="flex gap-3 justify-center">
-                  {patterns.map((item, idx) => (
+                  {patterns.map((item: { size: number; pattern: PerlerPattern }, idx: number) => (
                     <button
                       key={item.size}
                       onClick={() => setSelectedPatternIdx(idx)}
@@ -529,7 +544,7 @@ export default function Home() {
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="font-pixel text-[14px] text-[#2D2A26]">拼豆图纸</h2>
                     <span className="font-pixel text-[10px] text-[#7A756E]">
-                      {patterns[selectedPatternIdx].pattern.width}×{patterns[selectedPatternIdx].pattern.height} · {Object.values(patterns[selectedPatternIdx].pattern.colorStats).reduce((s, c) => s + c, 0)} 颗拼豆
+                      {patterns[selectedPatternIdx].pattern.width}×{patterns[selectedPatternIdx].pattern.height} · {Object.values(patterns[selectedPatternIdx].pattern.colorStats).reduce((s: number, c: number) => s + c, 0)} 颗拼豆
                     </span>
                   </div>
                   <div className="flex justify-center overflow-auto pb-2">
@@ -542,7 +557,7 @@ export default function Home() {
 
                 {/* Color stats */}
                 {(() => {
-                  const p = patterns[selectedPatternIdx].pattern;
+                  const p = displayPattern;
                   if (!p.colorStats || Object.keys(p.colorStats).length === 0) return null;
                   return (
                     <div className="pixel-card bg-white p-6">
@@ -571,7 +586,7 @@ export default function Home() {
                       </div>
                       <div className="mt-4 pt-3 border-t-2 border-[#E8E4DF]">
                         <p className="font-pixel text-[10px] text-[#7A756E]">
-                          总计：{Object.values(p.colorStats).reduce((sum, count) => sum + count, 0)} 颗拼豆
+                          总计：{Object.values(p.colorStats).reduce((sum: number, count: number) => sum + count, 0)} 颗拼豆
                         </p>
                       </div>
                     </div>
@@ -581,8 +596,16 @@ export default function Home() {
                 {/* Download buttons */}
                 <div className="flex gap-3">
                   <button
+                    onClick={() => setIsEditing(true)}
+                    className="pixel-btn flex-1 py-3 bg-[#6BA3D6] hover:bg-[#5A92C5] text-white font-bold flex items-center justify-center gap-2"
+                    style={{ borderWidth: 3, borderColor: "#2D2A26", boxShadow: "4px 4px 0 #2D2A26" }}
+                  >
+                    <Palette className="w-5 h-5" />
+                    <span className="font-cute text-lg">编辑图纸</span>
+                  </button>
+                  <button
                     onClick={() => {
-                      const dataURL = generatePatternImage(patterns[selectedPatternIdx].pattern);
+                      const dataURL = generatePatternImage(displayPattern);
                       setPreviewImage(dataURL);
                     }}
                     className="pixel-btn flex-1 py-3 bg-[#E8734A] hover:bg-[#D4623B] text-white font-bold flex items-center justify-center gap-2"
@@ -592,7 +615,7 @@ export default function Home() {
                     <span className="font-cute text-lg">下载图纸</span>
                   </button>
                   <button
-                    onClick={() => downloadColorList(patterns[selectedPatternIdx].pattern)}
+                    onClick={() => downloadColorList(displayPattern)}
                     className="pixel-btn flex-1 py-3 bg-[#7BC8B0] hover:bg-[#6AB8A0] text-white font-bold flex items-center justify-center gap-2"
                     style={{ borderWidth: 3, borderColor: "#2D2A26", boxShadow: "4px 4px 0 #2D2A26" }}
                   >
@@ -719,6 +742,19 @@ export default function Home() {
       <footer className="py-6 flex justify-center">
         <PixelBeads />
       </footer>
+
+      {/* Editor Modal */}
+      {isEditing && currentPattern && (
+        <PerlerEditor
+          pattern={currentPattern}
+          onClose={() => setIsEditing(false)}
+          onSave={(modifiedPattern) => {
+            if (currentSize) {
+              handleSaveEdit(currentSize, modifiedPattern);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -34,8 +34,6 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
   const [selectedColor, setSelectedColor] = useState<MardColor | null>(null);
   const [zoom, setZoom] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [isModified, setIsModified] = useState(false);
   const [isDrawing, setIsDrawing] = useState(false);
   const [isSpacePressed, setIsSpacePressed] = useState(false); // Space 键按下状态
@@ -271,56 +269,54 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
       const isMoveMode = isSpacePressed || !selectedColor;
       
       if (isMoveMode) {
-        // 移动模式：拖拽画布
-        setIsDragging(true);
-        setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
+        // 移动模式：开始拖拽画布
+        setIsDrawing(false);
       } else if (e.button === 0) {
         // 绘制模式：开始绘制
         setIsDrawing(true);
         modifyPixel(e.clientX, e.clientY);
       }
     },
-    [selectedColor, offset, modifyPixel, isSpacePressed]
+    [selectedColor, modifyPixel, isSpacePressed]
   );
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       const isMoveMode = isSpacePressed || !selectedColor;
       
-      if (isDragging && isMoveMode) {
-        // 移动模式：拖拽画布
-        setOffset({
-          x: e.clientX - dragStart.x,
-          y: e.clientY - dragStart.y,
-        });
-      } else if (isDrawing && !isMoveMode) {
+      if (isDrawing && !isMoveMode) {
         // 绘制模式：绘制像素
         modifyPixel(e.clientX, e.clientY);
       }
     },
-    [isDragging, dragStart, isDrawing, selectedColor, modifyPixel, isSpacePressed]
+    [isDrawing, selectedColor, modifyPixel, isSpacePressed]
   );
 
   const handleMouseUp = useCallback(() => {
     if (isDrawing) {
       finishDrawing();
-    } else {
-      setIsDragging(false);
     }
   }, [isDrawing, finishDrawing]);
 
-  // 触摸事件（移动端）- 单指绘制，双指移动
+  // 触摸事件（移动端）- 单指绘制，双指缩放 + 拖动（合并逻辑）
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
+  const lastTouchDistance = useRef<number | null>(null);
+  const lastTouchCenter = useRef<{ x: number; y: number } | null>(null);
 
   const handleTouchStart = useCallback(
     (e: React.TouchEvent) => {
       if (e.touches.length === 2) {
-        // 双指：移动画布
+        // 双指：同时支持缩放和拖动
         e.preventDefault();
-        setIsDragging(true);
-        const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-        const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-        setDragStart({ x: midX - offset.x, y: midY - offset.y });
+        const distance = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        lastTouchDistance.current = distance;
+        
+        const centerX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const centerY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        lastTouchCenter.current = { x: centerX - offset.x, y: centerY - offset.y };
       } else if (e.touches.length === 1) {
         // 单指：只用于绘制，禁止移动画布
         const touch = e.touches[0];
@@ -339,86 +335,54 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
 
   const handleTouchMove = useCallback(
     (e: React.TouchEvent) => {
-      if (e.touches.length === 2) {
-        // 双指：移动画布
+      if (e.touches.length === 2 && lastTouchDistance.current !== null && lastTouchCenter.current !== null) {
+        // 双指：同时处理缩放和拖动
         e.preventDefault();
-        const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-        const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        
+        const distance = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        const scale = distance / lastTouchDistance.current;
+        
+        const centerX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const centerY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        
+        // 缩放
+        const newZoom = Math.max(0.5, Math.min(3, zoom * scale));
+        
+        // 拖动 + 缩放补偿
         setOffset({
-          x: midX - dragStart.x,
-          y: midY - dragStart.y,
+          x: centerX - lastTouchCenter.current.x * (newZoom / zoom),
+          y: centerY - lastTouchCenter.current.y * (newZoom / zoom),
         });
+        setZoom(newZoom);
+        
+        lastTouchDistance.current = distance;
+        lastTouchCenter.current = { x: centerX - offset.x, y: centerY - offset.y };
       } else if (e.touches.length === 1 && isDrawing) {
         // 单指 + 绘制中：批量修改颜色
         e.preventDefault();
         const touch = e.touches[0];
         modifyPixel(touch.clientX, touch.clientY);
       }
-      // 单指 + 未选中颜色：不做任何操作（禁止单指移动）
     },
-    [isDrawing, dragStart, modifyPixel]
+    [isDrawing, zoom, offset, modifyPixel]
   );
 
   const handleTouchEnd = useCallback(
     (e: React.TouchEvent) => {
-      if (isDrawing) {
-        finishDrawing();
-      } else {
-        setIsDragging(false);
+      if (e.touches.length === 0) {
+        lastTouchDistance.current = null;
+        lastTouchCenter.current = null;
+        if (isDrawing) {
+          finishDrawing();
+        }
       }
-
-      // 如果是点击（没有明显移动），且没有选择颜色，则不处理
-      // 选择颜色时的点击已在 handleTouchStart 中处理
       touchStartPos.current = null;
     },
     [isDrawing, finishDrawing]
   );
-
-  // 双指缩放
-  const lastTouchDistance = useRef<number | null>(null);
-
-  const handleTouchStartZoom = useCallback((e: React.TouchEvent) => {
-    if (e.touches.length === 2) {
-      const distance = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-      lastTouchDistance.current = distance;
-    }
-  }, []);
-
-  const handleTouchMoveZoom = useCallback((e: React.TouchEvent) => {
-    if (e.touches.length === 2 && lastTouchDistance.current !== null && containerRef.current) {
-      const distance = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-      const scale = distance / lastTouchDistance.current;
-
-      // 以双指中心为基准点缩放
-      const rect = containerRef.current.getBoundingClientRect();
-      const centerX = rect.width / 2;
-      const centerY = rect.height / 2;
-
-      // 计算中心点对应的图纸坐标
-      const paperX = (centerX - offset.x) / zoom;
-      const paperY = (centerY - offset.y) / zoom;
-
-      // 缩放后，调整 offset 使得该点仍在中心
-      const newZoom = Math.max(0.5, Math.min(3, zoom * scale));
-      setZoom(newZoom);
-      setOffset({
-        x: centerX - paperX * newZoom,
-        y: centerY - paperY * newZoom,
-      });
-
-      lastTouchDistance.current = distance;
-    }
-  }, [zoom, offset]);
-
-  const handleTouchEndZoom = useCallback(() => {
-    lastTouchDistance.current = null;
-  }, []);
 
   return (
     <div className="fixed inset-0 z-50 bg-[#FAF8F5] flex flex-col">

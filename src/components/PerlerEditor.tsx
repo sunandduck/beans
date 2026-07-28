@@ -476,7 +476,20 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
         <div className="flex-shrink-0 bg-white border-b-2 border-[#E8E4DF] px-3 py-2 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setZoom((prev: number) => Math.max(0.5, prev - 0.1))}
+              onClick={() => {
+                if (!containerRef.current) return
+                const rect = containerRef.current.getBoundingClientRect()
+                const centerX = rect.width / 2
+                const centerY = rect.height / 2
+                const paperX = (centerX - offset.x) / zoom
+                const paperY = (centerY - offset.y) / zoom
+                const newZoom = Math.max(0.5, zoom - 0.1)
+                setZoom(newZoom)
+                setOffset({
+                  x: centerX - paperX * newZoom,
+                  y: centerY - paperY * newZoom,
+                })
+              }}
               className="w-8 h-8 flex items-center justify-center bg-[#FAF8F5] border-2 border-[#E8E4DF] hover:border-[#E8734A]"
               style={{ borderWidth: 2 }}
             >
@@ -486,7 +499,20 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
               {Math.round(zoom * 100)}%
             </span>
             <button
-              onClick={() => setZoom((prev: number) => Math.min(3, prev + 0.1))}
+              onClick={() => {
+                if (!containerRef.current) return
+                const rect = containerRef.current.getBoundingClientRect()
+                const centerX = rect.width / 2
+                const centerY = rect.height / 2
+                const paperX = (centerX - offset.x) / zoom
+                const paperY = (centerY - offset.y) / zoom
+                const newZoom = Math.min(3, zoom + 0.1)
+                setZoom(newZoom)
+                setOffset({
+                  x: centerX - paperX * newZoom,
+                  y: centerY - paperY * newZoom,
+                })
+              }}
               className="w-8 h-8 flex items-center justify-center bg-[#FAF8F5] border-2 border-[#E8E4DF] hover:border-[#E8734A]"
               style={{ borderWidth: 2 }}
             >

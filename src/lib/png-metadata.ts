@@ -6,6 +6,28 @@
 // 元数据键名
 const METADATA_KEY = "PerlerBeadData";
 
+// CRC32 查找表
+const CRC32_TABLE = (() => {
+  const table = new Uint32Array(256);
+  for (let i = 0; i < 256; i++) {
+    let crc = i;
+    for (let j = 0; j < 8; j++) {
+      crc = crc & 1 ? 0xedb88320 ^ (crc >>> 1) : crc >>> 1;
+    }
+    table[i] = crc;
+  }
+  return table;
+})();
+
+// 计算 CRC32
+function crc32(data: Uint8Array): number {
+  let crc = 0xffffffff;
+  for (let i = 0; i < data.length; i++) {
+    crc = CRC32_TABLE[(crc ^ data[i]) & 0xff] ^ (crc >>> 8);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
 // 元数据结构
 export interface PerlerMetadata {
   version: string; // 版本号
@@ -94,12 +116,15 @@ export async function embedMetadataToPNG(
     textChunk[offset++] = metadataBytes[i];
   }
 
-  // CRC（简化处理，实际应该计算 CRC32）
-  // 这里使用简单的校验和，实际项目中应该使用正确的 CRC32 算法
-  textChunk[offset++] = 0;
-  textChunk[offset++] = 0;
-  textChunk[offset++] = 0;
-  textChunk[offset++] = 0;
+  // CRC32（计算类型 + 数据的 CRC）
+  const crcData = new Uint8Array(4 + textDataLength);
+  crcData.set(textChunkType, 0);
+  crcData.set(textChunk.subarray(8, 8 + textDataLength), 4);
+  const crc = crc32(crcData);
+  textChunk[offset++] = (crc >> 24) & 0xff;
+  textChunk[offset++] = (crc >> 16) & 0xff;
+  textChunk[offset++] = (crc >> 8) & 0xff;
+  textChunk[offset++] = crc & 0xff;
 
   // 找到 PNG 文件的 IEND 块之前的位置插入 tEXt 块
   // PNG 结构：签名 (8 bytes) + IHDR + ... + tEXt + ... + IEND

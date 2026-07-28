@@ -130,9 +130,13 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
       // 计算基础格子大小（与渲染时一致）
       const baseCellSize = Math.max(4, Math.min(20, Math.floor(400 / pattern.width)));
       
-      // 计算点击的格子坐标（rect 已经包含了 transform 的影响）
-      const col = Math.floor(x / baseCellSize);
-      const row = Math.floor(y / baseCellSize);
+      // 计算缩放比例（rect 是缩放后的实际显示尺寸）
+      const originalWidth = pattern.width * baseCellSize;
+      const scale = rect.width / originalWidth;
+      
+      // 计算点击的格子坐标（需要除以缩放比例）
+      const col = Math.floor(x / (baseCellSize * scale));
+      const row = Math.floor(y / (baseCellSize * scale));
 
       if (row >= 0 && row < pattern.height && col >= 0 && col < pattern.width) {
         const newBeads = [...beads];

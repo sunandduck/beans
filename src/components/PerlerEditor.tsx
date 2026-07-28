@@ -314,6 +314,17 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const lastTouchDistance = useRef<number | null>(null);
   const lastTouchCenter = useRef<{ x: number; y: number } | null>(null);
+  const zoomRef = useRef(zoom);
+  const offsetRef = useRef(offset);
+
+  // 同步 ref 值
+  useEffect(() => {
+    zoomRef.current = zoom;
+  }, [zoom]);
+
+  useEffect(() => {
+    offsetRef.current = offset;
+  }, [offset]);
 
   const handleTouchStart = useCallback(
     (e: React.TouchEvent) => {
@@ -328,7 +339,8 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
         
         const centerX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
         const centerY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-        lastTouchCenter.current = { x: centerX - offset.x, y: centerY - offset.y };
+        const currentOffset = offsetRef.current;
+        lastTouchCenter.current = { x: centerX - currentOffset.x, y: centerY - currentOffset.y };
       } else if (e.touches.length === 1) {
         // 单指：只用于绘制，禁止移动画布
         const touch = e.touches[0];
@@ -342,7 +354,7 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
         // 未选中颜色：不做任何操作（禁止单指移动）
       }
     },
-    [selectedColor, offset, modifyPixel]
+    [selectedColor, modifyPixel]
   );
 
   const handleTouchMove = useCallback(
@@ -355,23 +367,32 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
           e.touches[0].clientX - e.touches[1].clientX,
           e.touches[0].clientY - e.touches[1].clientY
         );
+        const currentZoom = zoomRef.current;
         const scale = distance / lastTouchDistance.current;
         
         const centerX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
         const centerY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
         
         // 缩放
-        const newZoom = Math.max(0.5, Math.min(3, zoom * scale));
+        const newZoom = Math.max(0.5, Math.min(3, currentZoom * scale));
+        const zoomRatio = newZoom / currentZoom;
         
         // 拖动 + 缩放补偿
-        setOffset({
-          x: centerX - lastTouchCenter.current.x * (newZoom / zoom),
-          y: centerY - lastTouchCenter.current.y * (newZoom / zoom),
-        });
+        const currentCenter = lastTouchCenter.current;
+        const newOffset = {
+          x: centerX - currentCenter.x * zoomRatio,
+          y: centerY - currentCenter.y * zoomRatio,
+        };
+        
+        setOffset(newOffset);
         setZoom(newZoom);
         
+        // 更新 ref
+        zoomRef.current = newZoom;
+        offsetRef.current = newOffset;
+        
         lastTouchDistance.current = distance;
-        lastTouchCenter.current = { x: centerX - offset.x, y: centerY - offset.y };
+        lastTouchCenter.current = { x: centerX - newOffset.x, y: centerY - newOffset.y };
       } else if (e.touches.length === 1 && isDrawing) {
         // 单指 + 绘制中：批量修改颜色
         e.preventDefault();
@@ -379,7 +400,7 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
         modifyPixel(touch.clientX, touch.clientY);
       }
     },
-    [isDrawing, zoom, offset, modifyPixel]
+    [isDrawing, modifyPixel]
   );
 
   const handleTouchEnd = useCallback(
@@ -463,80 +484,145 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
         </div>
       </header>
 
-      {/* 主内容区 — 操作区和图纸区分开 */}
-      <div className="flex flex-col flex-1 overflow-hidden">
-        {/* 操作区 — 固定不缩放 */}
-        <div className="flex-shrink-0 bg-white border-b-2 border-[#E8E4DF] px-3 py-2 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => {
-                if (!containerRef.current) return
-                const rect = containerRef.current.getBoundingClientRect()
-                const centerX = rect.width / 2
-                const centerY = rect.height / 2
-                const paperX = (centerX - offset.x) / zoom
-                const paperY = (centerY - offset.y) / zoom
-                const newZoom = Math.max(0.5, zoom - 0.1)
-                setZoom(newZoom)
-                setOffset({
-                  x: centerX - paperX * newZoom,
-                  y: centerY - paperY * newZoom,
-                })
-              }}
-              className="w-8 h-8 flex items-center justify-center bg-[#FAF8F5] border-2 border-[#E8E4DF] hover:border-[#E8734A]"
-              style={{ borderWidth: 2 }}
-            >
-              <ZoomOut className="w-4 h-4" />
-            </button>
-            <span className="font-pixel text-xs text-[#2D2A26] w-14 text-center">
-              {Math.round(zoom * 100)}%
-            </span>
-            <button
-              onClick={() => {
-                if (!containerRef.current) return
-                const rect = containerRef.current.getBoundingClientRect()
-                const centerX = rect.width / 2
-                const centerY = rect.height / 2
-                const paperX = (centerX - offset.x) / zoom
-                const paperY = (centerY - offset.y) / zoom
-                const newZoom = Math.min(3, zoom + 0.1)
-                setZoom(newZoom)
-                setOffset({
-                  x: centerX - paperX * newZoom,
-                  y: centerY - paperY * newZoom,
-                })
-              }}
-              className="w-8 h-8 flex items-center justify-center bg-[#FAF8F5] border-2 border-[#E8E4DF] hover:border-[#E8734A]"
-              style={{ borderWidth: 2 }}
-            >
-              <ZoomIn className="w-4 h-4" />
-            </button>
-            <span className="text-[10px] text-[#7A756E] ml-2">
-              💡 移动端双指操作拖动图纸，选中颜色单指拖动可批量修改色块
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowSaveConfirm(true)}
-              disabled={!isModified}
-              className="px-3 py-1.5 bg-[#E8734A] hover:bg-[#D4623B] text-white font-pixel text-[10px] flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ borderWidth: 2, borderColor: "#2D2A26", boxShadow: "2px 2px 0 #2D2A26" }}
-            >
-              <Check className="w-3 h-3" />
-              保存
-            </button>
-          </div>
-        </div>
+      {/* 主内容区 — 桌面端左右布局，移动端上下布局 */}
+      <div className="flex flex-1 overflow-hidden md:flex-row flex-col">
+        {/* 色号选择器 — 桌面端左侧边栏 */}
+        <aside className="hidden md:block md:w-64 bg-white border-r-2 border-[#E8E4DF] flex-shrink-0 overflow-y-auto" style={{ maxHeight: "calc(100vh - 140px)" }}>
+          <div className="p-4">
+            <h3 className="font-pixel text-xs text-[#2D2A26] mb-3">选择颜色</h3>
+            <div className="space-y-2">
+              {usedColors.map((color) => (
+                <button
+                  key={color.code}
+                  onClick={() => setSelectedColor(selectedColor?.code === color.code ? null : color)}
+                  className={`w-full flex items-center gap-2 p-2 border-2 transition-all ${
+                    selectedColor?.code === color.code
+                      ? "border-[#E8734A] bg-orange-50"
+                      : "border-[#E8E4DF] hover:border-[#E8734A]/50"
+                  }`}
+                  style={{ borderWidth: 2 }}
+                >
+                  <div
+                    className="w-8 h-8 flex-shrink-0"
+                    style={{ backgroundColor: color.hex, border: "2px solid #E8E4DF" }}
+                  />
+                  <div className="flex-1 text-left min-w-0">
+                    <p className="font-pixel text-[8px] text-[#2D2A26]">{color.code}</p>
+                    <p className="text-[10px] text-[#7A756E] truncate">{color.name}</p>
+                  </div>
+                  {selectedColor?.code === color.code && (
+                    <Check className="w-4 h-4 text-[#E8734A]" />
+                  )}
+                </button>
+              ))}
+            </div>
 
-        {/* 图纸区 — 独立缩放，可滚动 */}
-        <div
-          ref={containerRef}
-          className="flex-1 overflow-auto bg-[#FAF8F5] p-2 md:p-4"
-          style={{ 
-            cursor: isDrawing ? "crosshair" : "grab",
-            touchAction: "none"
-          }}
-        >
+            {selectedColor && (
+              <div className="mt-4 p-3 bg-[#FAF8F5] border-2 border-[#E8E4DF]">
+                <p className="font-pixel text-[8px] text-[#7A756E] mb-1">当前选中</p>
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-10 h-10"
+                    style={{ backgroundColor: selectedColor.hex, border: "2px solid #E8E4DF" }}
+                  />
+                  <div>
+                    <p className="font-pixel text-[10px] text-[#2D2A26]">{selectedColor.code}</p>
+                    <p className="text-xs text-[#7A756E]">{selectedColor.name}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="mt-4 p-3 bg-blue-50 border-2 border-blue-200">
+              <p className="text-xs text-blue-700">
+                <strong>提示：</strong>
+                <br />
+                1. 选择颜色
+                <br />
+                2. 点击格子修改
+                <br />
+                3. 拖拽移动画布
+                <br />
+                4. 双指缩放（移动端）
+              </p>
+            </div>
+          </div>
+        </aside>
+
+        {/* 右侧内容区 — 包含操作区和图纸区 */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* 操作区 — 固定不缩放 */}
+          <div className="flex-shrink-0 bg-white border-b-2 border-[#E8E4DF] px-3 py-2 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  if (!containerRef.current) return
+                  const rect = containerRef.current.getBoundingClientRect()
+                  const centerX = rect.width / 2
+                  const centerY = rect.height / 2
+                  const paperX = (centerX - offset.x) / zoom
+                  const paperY = (centerY - offset.y) / zoom
+                  const newZoom = Math.max(0.5, zoom - 0.1)
+                  setZoom(newZoom)
+                  setOffset({
+                    x: centerX - paperX * newZoom,
+                    y: centerY - paperY * newZoom,
+                  })
+                }}
+                className="w-8 h-8 flex items-center justify-center bg-[#FAF8F5] border-2 border-[#E8E4DF] hover:border-[#E8734A]"
+                style={{ borderWidth: 2 }}
+              >
+                <ZoomOut className="w-4 h-4" />
+              </button>
+              <span className="font-pixel text-xs text-[#2D2A26] w-14 text-center">
+                {Math.round(zoom * 100)}%
+              </span>
+              <button
+                onClick={() => {
+                  if (!containerRef.current) return
+                  const rect = containerRef.current.getBoundingClientRect()
+                  const centerX = rect.width / 2
+                  const centerY = rect.height / 2
+                  const paperX = (centerX - offset.x) / zoom
+                  const paperY = (centerY - offset.y) / zoom
+                  const newZoom = Math.min(3, zoom + 0.1)
+                  setZoom(newZoom)
+                  setOffset({
+                    x: centerX - paperX * newZoom,
+                    y: centerY - paperY * newZoom,
+                  })
+                }}
+                className="w-8 h-8 flex items-center justify-center bg-[#FAF8F5] border-2 border-[#E8E4DF] hover:border-[#E8734A]"
+                style={{ borderWidth: 2 }}
+              >
+                <ZoomIn className="w-4 h-4" />
+              </button>
+              <span className="text-[10px] text-[#7A756E] ml-2">
+                💡 移动端双指操作拖动图纸，选中颜色单指拖动可批量修改色块
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowSaveConfirm(true)}
+                disabled={!isModified}
+                className="px-3 py-1.5 bg-[#E8734A] hover:bg-[#D4623B] text-white font-pixel text-[10px] flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ borderWidth: 2, borderColor: "#2D2A26", boxShadow: "2px 2px 0 #2D2A26" }}
+              >
+                <Check className="w-3 h-3" />
+                保存
+              </button>
+            </div>
+          </div>
+
+          {/* 图纸区 — 独立缩放，可滚动 */}
+          <div
+            ref={containerRef}
+            className="flex-1 overflow-auto bg-[#FAF8F5] p-2 md:p-4"
+            style={{ 
+              cursor: selectedColor ? "crosshair" : "grab",
+              touchAction: "none"
+            }}
+          >
             <div
               style={{
                 transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
@@ -561,112 +647,47 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
               />
             </div>
           </div>
-
-        {/* 色号选择器 — 移动端底部横条，桌面端左侧边栏 */}
-        <aside className="order-2 md:order-1 md:w-64 bg-white md:border-r-2 border-t-2 md:border-t-0 border-[#E8E4DF] flex-shrink-0">
-          {/* 移动端：横向滚动色号条 */}
-          <div className="md:hidden">
-            <div className="px-3 py-2 border-b border-[#E8E4DF] flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <h3 className="font-pixel text-[10px] text-[#2D2A26]">选择颜色</h3>
-                <span className="text-[9px] text-[#7A756E]">← 左右滑动 →</span>
-              </div>
-              {selectedColor && (
-                <div className="flex items-center gap-1.5">
-                  <div
-                    className="w-5 h-5"
-                    style={{ backgroundColor: selectedColor.hex, border: "2px solid #E8E4DF" }}
-                  />
-                  <span className="font-pixel text-[8px] text-[#7A756E]">{selectedColor.code}</span>
-                </div>
-              )}
-            </div>
-            <div className="flex gap-2 overflow-x-auto p-3" style={{ scrollbarWidth: "thin" }}>
-              {usedColors.map((color) => (
-                <button
-                  key={color.code}
-                  onClick={() => setSelectedColor(selectedColor?.code === color.code ? null : color)}
-                  className={`flex-shrink-0 flex flex-col items-center gap-1 p-2 border-2 transition-all min-w-[56px] ${
-                    selectedColor?.code === color.code
-                      ? "border-[#E8734A] bg-orange-50"
-                      : "border-[#E8E4DF] hover:border-[#E8734A]/50"
-                  }`}
-                  style={{ borderWidth: 2 }}
-                >
-                  <div
-                    className="w-8 h-8"
-                    style={{ backgroundColor: color.hex, border: "2px solid #E8E4DF" }}
-                  />
-                  <span className="font-pixel text-[7px] text-[#2D2A26]">{color.code}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* 桌面端：纵向侧边栏 */}
-          <div className="hidden md:block overflow-y-auto" style={{ maxHeight: "calc(100vh - 140px)" }}>
-            <div className="p-4">
-              <h3 className="font-pixel text-xs text-[#2D2A26] mb-3">选择颜色</h3>
-              <div className="space-y-2">
-                {usedColors.map((color) => (
-                  <button
-                    key={color.code}
-                    onClick={() => setSelectedColor(selectedColor?.code === color.code ? null : color)}
-                    className={`w-full flex items-center gap-2 p-2 border-2 transition-all ${
-                      selectedColor?.code === color.code
-                        ? "border-[#E8734A] bg-orange-50"
-                        : "border-[#E8E4DF] hover:border-[#E8734A]/50"
-                    }`}
-                    style={{ borderWidth: 2 }}
-                  >
-                    <div
-                      className="w-8 h-8 flex-shrink-0"
-                      style={{ backgroundColor: color.hex, border: "2px solid #E8E4DF" }}
-                    />
-                    <div className="flex-1 text-left min-w-0">
-                      <p className="font-pixel text-[8px] text-[#2D2A26]">{color.code}</p>
-                      <p className="text-[10px] text-[#7A756E] truncate">{color.name}</p>
-                    </div>
-                    {selectedColor?.code === color.code && (
-                      <Check className="w-4 h-4 text-[#E8734A]" />
-                    )}
-                  </button>
-                ))}
-              </div>
-
-              {selectedColor && (
-                <div className="mt-4 p-3 bg-[#FAF8F5] border-2 border-[#E8E4DF]">
-                  <p className="font-pixel text-[8px] text-[#7A756E] mb-1">当前选中</p>
-                  <div className="flex items-center gap-2">
-                    <div
-                      className="w-10 h-10"
-                      style={{ backgroundColor: selectedColor.hex, border: "2px solid #E8E4DF" }}
-                    />
-                    <div>
-                      <p className="font-pixel text-[10px] text-[#2D2A26]">{selectedColor.code}</p>
-                      <p className="text-xs text-[#7A756E]">{selectedColor.name}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="mt-4 p-3 bg-blue-50 border-2 border-blue-200">
-                <p className="text-xs text-blue-700">
-                  <strong>提示：</strong>
-                  <br />
-                  1. 选择颜色
-                  <br />
-                  2. 点击格子修改
-                  <br />
-                  3. 拖拽移动画布
-                  <br />
-                  4. 双指缩放（移动端）
-                </p>
-              </div>
-            </div>
-          </div>
-        </aside>
+        </div>
       </div>
+
+      {/* 移动端底部色号选择器 */}
+      <aside className="md:hidden bg-white border-t-2 border-[#E8E4DF] flex-shrink-0">
+        <div className="px-3 py-2 border-b border-[#E8E4DF] flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <h3 className="font-pixel text-[10px] text-[#2D2A26]">选择颜色</h3>
+            <span className="text-[9px] text-[#7A756E]">← 左右滑动 →</span>
+          </div>
+          {selectedColor && (
+            <div className="flex items-center gap-1.5">
+              <div
+                className="w-5 h-5"
+                style={{ backgroundColor: selectedColor.hex, border: "2px solid #E8E4DF" }}
+              />
+              <span className="font-pixel text-[8px] text-[#7A756E]">{selectedColor.code}</span>
+            </div>
+          )}
+        </div>
+        <div className="flex gap-2 overflow-x-auto p-3" style={{ scrollbarWidth: "thin" }}>
+          {usedColors.map((color) => (
+            <button
+              key={color.code}
+              onClick={() => setSelectedColor(selectedColor?.code === color.code ? null : color)}
+              className={`flex-shrink-0 flex flex-col items-center gap-1 p-2 border-2 transition-all min-w-[56px] ${
+                selectedColor?.code === color.code
+                  ? "border-[#E8734A] bg-orange-50"
+                  : "border-[#E8E4DF] hover:border-[#E8734A]/50"
+              }`}
+              style={{ borderWidth: 2 }}
+            >
+              <div
+                className="w-8 h-8"
+                style={{ backgroundColor: color.hex, border: "2px solid #E8E4DF" }}
+              />
+              <span className="font-pixel text-[7px] text-[#2D2A26]">{color.code}</span>
+            </button>
+          ))}
+        </div>
+      </aside>
 
       {/* 保存确认对话框 */}
       {showSaveConfirm && (

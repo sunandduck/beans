@@ -316,74 +316,11 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
         </div>
       </header>
 
-      <div className="flex flex-1 overflow-hidden">
-        {/* 左侧色号选择器 */}
-        <aside className="w-64 bg-white border-r-3 border-[#E8E4DF] overflow-y-auto">
-          <div className="p-4">
-            <h3 className="font-pixel text-xs text-[#2D2A26] mb-3">选择颜色</h3>
-            <div className="space-y-2">
-              {usedColors.map((color) => (
-                <button
-                  key={color.code}
-                  onClick={() => setSelectedColor(color)}
-                  className={`w-full flex items-center gap-2 p-2 border-2 transition-all ${
-                    selectedColor?.code === color.code
-                      ? "border-[#E8734A] bg-orange-50"
-                      : "border-[#E8E4DF] hover:border-[#E8734A]/50"
-                  }`}
-                  style={{ borderWidth: 2 }}
-                >
-                  <div
-                    className="w-8 h-8 flex-shrink-0"
-                    style={{ backgroundColor: color.hex, border: "2px solid #E8E4DF" }}
-                  />
-                  <div className="flex-1 text-left min-w-0">
-                    <p className="font-pixel text-[8px] text-[#2D2A26]">{color.code}</p>
-                    <p className="text-[10px] text-[#7A756E] truncate">{color.name}</p>
-                  </div>
-                  {selectedColor?.code === color.code && (
-                    <Check className="w-4 h-4 text-[#E8734A]" />
-                  )}
-                </button>
-              ))}
-            </div>
-
-            {selectedColor && (
-              <div className="mt-4 p-3 bg-[#FAF8F5] border-2 border-[#E8E4DF]">
-                <p className="font-pixel text-[8px] text-[#7A756E] mb-1">当前选中</p>
-                <div className="flex items-center gap-2">
-                  <div
-                    className="w-10 h-10"
-                    style={{ backgroundColor: selectedColor.hex, border: "2px solid #E8E4DF" }}
-                  />
-                  <div>
-                    <p className="font-pixel text-[10px] text-[#2D2A26]">{selectedColor.code}</p>
-                    <p className="text-xs text-[#7A756E]">{selectedColor.name}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="mt-4 p-3 bg-blue-50 border-2 border-blue-200">
-              <p className="text-xs text-blue-700">
-                <strong>提示：</strong>
-                <br />
-                1. 选择颜色
-                <br />
-                2. 点击格子修改
-                <br />
-                3. 拖拽移动画布
-                <br />
-                4. 双指缩放（移动端）
-              </p>
-            </div>
-          </div>
-        </aside>
-
-        {/* 中间画布区域 */}
-        <main className="flex-1 flex flex-col overflow-hidden">
-          {/* 缩放控制 */}
-          <div className="bg-white border-b-2 border-[#E8E4DF] px-4 py-2 flex items-center justify-between">
+      <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
+        {/* 画布区域 — 移动端优先，占据主要空间 */}
+        <main className="flex-1 flex flex-col overflow-hidden order-1 md:order-2">
+          {/* 缩放控制 + 操作按钮 */}
+          <div className="bg-white border-b-2 border-[#E8E4DF] px-3 py-2 flex items-center justify-between flex-shrink-0">
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setZoom((prev: number) => Math.max(0.5, prev - 0.1))}
@@ -392,7 +329,7 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
               >
                 <ZoomOut className="w-4 h-4" />
               </button>
-              <span className="font-pixel text-xs text-[#2D2A26] w-16 text-center">
+              <span className="font-pixel text-xs text-[#2D2A26] w-14 text-center">
                 {Math.round(zoom * 100)}%
               </span>
               <button
@@ -427,7 +364,7 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
           {/* 画布容器 */}
           <div
             ref={containerRef}
-            className="flex-1 overflow-auto bg-[#FAF8F5] p-4"
+            className="flex-1 overflow-auto bg-[#FAF8F5] p-2 md:p-4"
             style={{ cursor: selectedColor ? "crosshair" : isDragging ? "grabbing" : "grab" }}
           >
             <div
@@ -464,6 +401,108 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
             </div>
           </div>
         </main>
+
+        {/* 色号选择器 — 移动端底部横条，桌面端左侧边栏 */}
+        <aside className="order-2 md:order-1 md:w-64 bg-white md:border-r-2 border-t-2 md:border-t-0 border-[#E8E4DF] flex-shrink-0">
+          {/* 移动端：横向滚动色号条 */}
+          <div className="md:hidden">
+            <div className="px-3 py-2 border-b border-[#E8E4DF] flex items-center justify-between">
+              <h3 className="font-pixel text-[10px] text-[#2D2A26]">选择颜色</h3>
+              {selectedColor && (
+                <div className="flex items-center gap-1.5">
+                  <div
+                    className="w-5 h-5"
+                    style={{ backgroundColor: selectedColor.hex, border: "2px solid #E8E4DF" }}
+                  />
+                  <span className="font-pixel text-[8px] text-[#7A756E]">{selectedColor.code}</span>
+                </div>
+              )}
+            </div>
+            <div className="flex gap-2 overflow-x-auto p-3" style={{ scrollbarWidth: "thin" }}>
+              {usedColors.map((color) => (
+                <button
+                  key={color.code}
+                  onClick={() => setSelectedColor(color)}
+                  className={`flex-shrink-0 flex flex-col items-center gap-1 p-2 border-2 transition-all min-w-[56px] ${
+                    selectedColor?.code === color.code
+                      ? "border-[#E8734A] bg-orange-50"
+                      : "border-[#E8E4DF] hover:border-[#E8734A]/50"
+                  }`}
+                  style={{ borderWidth: 2 }}
+                >
+                  <div
+                    className="w-8 h-8"
+                    style={{ backgroundColor: color.hex, border: "2px solid #E8E4DF" }}
+                  />
+                  <span className="font-pixel text-[7px] text-[#2D2A26]">{color.code}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 桌面端：纵向侧边栏 */}
+          <div className="hidden md:block overflow-y-auto" style={{ maxHeight: "calc(100vh - 140px)" }}>
+            <div className="p-4">
+              <h3 className="font-pixel text-xs text-[#2D2A26] mb-3">选择颜色</h3>
+              <div className="space-y-2">
+                {usedColors.map((color) => (
+                  <button
+                    key={color.code}
+                    onClick={() => setSelectedColor(color)}
+                    className={`w-full flex items-center gap-2 p-2 border-2 transition-all ${
+                      selectedColor?.code === color.code
+                        ? "border-[#E8734A] bg-orange-50"
+                        : "border-[#E8E4DF] hover:border-[#E8734A]/50"
+                    }`}
+                    style={{ borderWidth: 2 }}
+                  >
+                    <div
+                      className="w-8 h-8 flex-shrink-0"
+                      style={{ backgroundColor: color.hex, border: "2px solid #E8E4DF" }}
+                    />
+                    <div className="flex-1 text-left min-w-0">
+                      <p className="font-pixel text-[8px] text-[#2D2A26]">{color.code}</p>
+                      <p className="text-[10px] text-[#7A756E] truncate">{color.name}</p>
+                    </div>
+                    {selectedColor?.code === color.code && (
+                      <Check className="w-4 h-4 text-[#E8734A]" />
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              {selectedColor && (
+                <div className="mt-4 p-3 bg-[#FAF8F5] border-2 border-[#E8E4DF]">
+                  <p className="font-pixel text-[8px] text-[#7A756E] mb-1">当前选中</p>
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="w-10 h-10"
+                      style={{ backgroundColor: selectedColor.hex, border: "2px solid #E8E4DF" }}
+                    />
+                    <div>
+                      <p className="font-pixel text-[10px] text-[#2D2A26]">{selectedColor.code}</p>
+                      <p className="text-xs text-[#7A756E]">{selectedColor.name}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-4 p-3 bg-blue-50 border-2 border-blue-200">
+                <p className="text-xs text-blue-700">
+                  <strong>提示：</strong>
+                  <br />
+                  1. 选择颜色
+                  <br />
+                  2. 点击格子修改
+                  <br />
+                  3. 拖拽移动画布
+                  <br />
+                  4. 双指缩放（移动端）
+                </p>
+              </div>
+            </div>
+          </div>
+        </aside>
       </div>
     </div>
   );

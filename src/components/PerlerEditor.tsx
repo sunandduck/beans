@@ -37,6 +37,7 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [isModified, setIsModified] = useState(false);
+  const [isDrawing, setIsDrawing] = useState(false);
 
   // 获取当前图纸使用的色号
   const usedColors = Object.keys(pattern.colorStats)
@@ -153,6 +154,51 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
     [selectedColor, beads, pattern, saveHistory]
   );
 
+  // 修改指定位置的像素块颜色（用于拖动绘制）
+  const modifyPixel = useCallback(
+    (clientX: number, clientY: number) => {
+      if (!selectedColor || !canvasRef.current) return;
+
+      const canvas = canvasRef.current;
+      const rect = canvas.getBoundingClientRect();
+      
+      const x = clientX - rect.left;
+      const y = clientY - rect.top;
+
+      const baseCellSize = Math.max(4, Math.min(20, Math.floor(400 / pattern.width)));
+      const originalWidth = pattern.width * baseCellSize;
+      const scale = rect.width / originalWidth;
+      
+      const col = Math.floor(x / (baseCellSize * scale));
+      const row = Math.floor(y / (baseCellSize * scale));
+
+      if (row >= 0 && row < pattern.height && col >= 0 && col < pattern.width) {
+        const index = row * pattern.width + col;
+        const currentBead = beads[index];
+        
+        // 只有当颜色不同时才修改
+        if (currentBead.color.code !== selectedColor.code || currentBead.isEmpty) {
+          const newBeads = [...beads];
+          newBeads[index] = {
+            ...newBeads[index],
+            color: selectedColor,
+            isEmpty: false,
+          };
+          setBeads(newBeads);
+        }
+      }
+    },
+    [selectedColor, beads, pattern]
+  );
+
+  // 结束绘制时保存历史
+  const finishDrawing = useCallback(() => {
+    if (isDrawing) {
+      saveHistory(beads);
+      setIsDrawing(false);
+    }
+  }, [isDrawing, beads, saveHistory]);
+
   // 渲染画布
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -191,34 +237,47 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
     }
   }, [beads, pattern, zoom]);
 
-  // 鼠标拖拽事件
+  // 鼠标拖拽事件（未选中颜色时拖拽画布，选中颜色时绘制）
   const handleMouseDown = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       if (!selectedColor) {
+        // 未选中颜色：拖拽画布
         setIsDragging(true);
         setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
+      } else if (e.button === 0) {
+        // 选中颜色：开始绘制
+        setIsDrawing(true);
+        modifyPixel(e.clientX, e.clientY);
       }
     },
-    [selectedColor, offset]
+    [selectedColor, offset, modifyPixel]
   );
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
-      if (isDragging) {
+      if (isDragging && !selectedColor) {
+        // 拖拽画布
         setOffset({
           x: e.clientX - dragStart.x,
           y: e.clientY - dragStart.y,
         });
+      } else if (isDrawing && selectedColor) {
+        // 绘制像素
+        modifyPixel(e.clientX, e.clientY);
       }
     },
-    [isDragging, dragStart]
+    [isDragging, dragStart, isDrawing, selectedColor, modifyPixel]
   );
 
   const handleMouseUp = useCallback(() => {
-    setIsDragging(false);
-  }, []);
+    if (isDrawing) {
+      finishDrawing();
+    } else {
+      setIsDragging(false);
+    }
+  }, [isDrawing, finishDrawing]);
 
-  // 触摸事件（移动端）
+  // 触摸事件（移动端）- 未选中颜色时拖拽画布，选中颜色时绘制
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
 
   const handleTouchStart = useCallback(
@@ -228,81 +287,62 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
         touchStartPos.current = { x: touch.clientX, y: touch.clientY };
 
         if (!selectedColor) {
+          // 未选中颜色：准备拖拽画布
           setIsDragging(true);
           setDragStart({
             x: touch.clientX - offset.x,
             y: touch.clientY - offset.y,
           });
+        } else {
+          // 选中颜色：开始绘制
+          setIsDrawing(true);
+          modifyPixel(touch.clientX, touch.clientY);
         }
       }
     },
-    [selectedColor, offset]
+    [selectedColor, offset, modifyPixel]
   );
 
   const handleTouchMove = useCallback(
     (e: React.TouchEvent) => {
-      if (isDragging && e.touches.length === 1) {
-        // 如果移动距离超过阈值，认为是拖拽而不是点击
-        if (touchStartPos.current) {
-          const touch = e.touches[0];
+      if (e.touches.length === 1) {
+        const touch = e.touches[0];
+
+        if (isDragging && !selectedColor) {
+          // 拖拽画布
+          setOffset({
+            x: touch.clientX - dragStart.x,
+            y: touch.clientY - dragStart.y,
+          });
+        } else if (isDrawing && selectedColor) {
+          // 绘制像素（批量修改）
+          modifyPixel(touch.clientX, touch.clientY);
+        } else if (touchStartPos.current && selectedColor === null) {
+          // 检测是否移动超过阈值（用于区分点击和拖拽）
           const dx = Math.abs(touch.clientX - touchStartPos.current.x);
           const dy = Math.abs(touch.clientY - touchStartPos.current.y);
           if (dx > 10 || dy > 10) {
-            touchStartPos.current = null; // 标记为拖拽，不触发点击
+            touchStartPos.current = null;
           }
         }
-
-        setOffset({
-          x: e.touches[0].clientX - dragStart.x,
-          y: e.touches[0].clientY - dragStart.y,
-        });
       }
     },
-    [isDragging, dragStart]
+    [isDragging, dragStart, isDrawing, selectedColor, modifyPixel]
   );
 
   const handleTouchEnd = useCallback(
     (e: React.TouchEvent) => {
-      setIsDragging(false);
-
-      // 如果是点击（没有明显移动），且选择了颜色，则修改像素
-      if (touchStartPos.current && selectedColor && e.changedTouches.length === 1) {
-        const touch = e.changedTouches[0];
-        const canvas = canvasRef.current;
-
-        if (canvas) {
-          const rect = canvas.getBoundingClientRect();
-          const x = touch.clientX - rect.left;
-          const y = touch.clientY - rect.top;
-
-          // 计算基础格子大小（与渲染时一致）
-          const baseCellSize = Math.max(4, Math.min(20, Math.floor(400 / pattern.width)));
-          
-          // 计算缩放比例
-          const originalWidth = pattern.width * baseCellSize;
-          const scale = rect.width / originalWidth;
-          
-          // 计算点击的格子坐标
-          const col = Math.floor(x / (baseCellSize * scale));
-          const row = Math.floor(y / (baseCellSize * scale));
-
-          if (row >= 0 && row < pattern.height && col >= 0 && col < pattern.width) {
-            const newBeads = [...beads];
-            const index = row * pattern.width + col;
-            newBeads[index] = {
-              ...newBeads[index],
-              color: selectedColor,
-              isEmpty: false,
-            };
-            setBeads(newBeads);
-            saveHistory(newBeads);
-          }
-        }
+      if (isDrawing) {
+        finishDrawing();
+      } else {
+        setIsDragging(false);
       }
 
+      // 如果是点击（没有明显移动），且没有选择颜色，则不处理
+      // 选择颜色时的点击已在 handleTouchStart 中处理
       touchStartPos.current = null;
     },
-    [selectedColor, beads, pattern, saveHistory]
+    [isDrawing, finishDrawing]
   );
 
   // 双指缩放
@@ -430,7 +470,7 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
           ref={containerRef}
           className="flex-1 overflow-auto bg-[#FAF8F5] p-2 md:p-4"
           style={{ 
-            cursor: selectedColor ? "crosshair" : isDragging ? "grabbing" : "grab",
+            cursor: isDrawing ? "crosshair" : isDragging ? "grabbing" : "grab",
             touchAction: "manipulation"
           }}
         >

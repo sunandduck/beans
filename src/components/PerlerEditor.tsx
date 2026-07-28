@@ -219,14 +219,21 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
   }, []);
 
   // 触摸事件（移动端）
+  const touchStartPos = useRef<{ x: number; y: number } | null>(null);
+
   const handleTouchStart = useCallback(
     (e: React.TouchEvent) => {
-      if (e.touches.length === 1 && !selectedColor) {
-        setIsDragging(true);
-        setDragStart({
-          x: e.touches[0].clientX - offset.x,
-          y: e.touches[0].clientY - offset.y,
-        });
+      if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        touchStartPos.current = { x: touch.clientX, y: touch.clientY };
+
+        if (!selectedColor) {
+          setIsDragging(true);
+          setDragStart({
+            x: touch.clientX - offset.x,
+            y: touch.clientY - offset.y,
+          });
+        }
       }
     },
     [selectedColor, offset]
@@ -235,6 +242,16 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
   const handleTouchMove = useCallback(
     (e: React.TouchEvent) => {
       if (isDragging && e.touches.length === 1) {
+        // 如果移动距离超过阈值，认为是拖拽而不是点击
+        if (touchStartPos.current) {
+          const touch = e.touches[0];
+          const dx = Math.abs(touch.clientX - touchStartPos.current.x);
+          const dy = Math.abs(touch.clientY - touchStartPos.current.y);
+          if (dx > 10 || dy > 10) {
+            touchStartPos.current = null; // 标记为拖拽，不触发点击
+          }
+        }
+
         setOffset({
           x: e.touches[0].clientX - dragStart.x,
           y: e.touches[0].clientY - dragStart.y,
@@ -244,9 +261,49 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
     [isDragging, dragStart]
   );
 
-  const handleTouchEnd = useCallback(() => {
-    setIsDragging(false);
-  }, []);
+  const handleTouchEnd = useCallback(
+    (e: React.TouchEvent) => {
+      setIsDragging(false);
+
+      // 如果是点击（没有明显移动），且选择了颜色，则修改像素
+      if (touchStartPos.current && selectedColor && e.changedTouches.length === 1) {
+        const touch = e.changedTouches[0];
+        const canvas = canvasRef.current;
+
+        if (canvas) {
+          const rect = canvas.getBoundingClientRect();
+          const x = touch.clientX - rect.left;
+          const y = touch.clientY - rect.top;
+
+          // 计算基础格子大小（与渲染时一致）
+          const baseCellSize = Math.max(4, Math.min(20, Math.floor(400 / pattern.width)));
+          
+          // 计算缩放比例
+          const originalWidth = pattern.width * baseCellSize;
+          const scale = rect.width / originalWidth;
+          
+          // 计算点击的格子坐标
+          const col = Math.floor(x / (baseCellSize * scale));
+          const row = Math.floor(y / (baseCellSize * scale));
+
+          if (row >= 0 && row < pattern.height && col >= 0 && col < pattern.width) {
+            const newBeads = [...beads];
+            const index = row * pattern.width + col;
+            newBeads[index] = {
+              ...newBeads[index],
+              color: selectedColor,
+              isEmpty: false,
+            };
+            setBeads(newBeads);
+            saveHistory(newBeads);
+          }
+        }
+      }
+
+      touchStartPos.current = null;
+    },
+    [selectedColor, beads, pattern, saveHistory]
+  );
 
   // 双指缩放
   const lastTouchDistance = useRef<number | null>(null);
@@ -372,8 +429,11 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
         <div
           ref={containerRef}
           className="flex-1 overflow-auto bg-[#FAF8F5] p-2 md:p-4"
-            style={{ cursor: selectedColor ? "crosshair" : isDragging ? "grabbing" : "grab" }}
-          >
+          style={{ 
+            cursor: selectedColor ? "crosshair" : isDragging ? "grabbing" : "grab",
+            touchAction: "manipulation"
+          }}
+        >
             <div
               style={{
                 transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
@@ -395,8 +455,8 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
                   handleTouchMove(e);
                   handleTouchMoveZoom(e);
                 }}
-                onTouchEnd={() => {
-                  handleTouchEnd();
+                onTouchEnd={(e) => {
+                  handleTouchEnd(e);
                   handleTouchEndZoom();
                 }}
                 style={{

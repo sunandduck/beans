@@ -388,7 +388,7 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
   }, []);
 
   const handleTouchMoveZoom = useCallback((e: React.TouchEvent) => {
-    if (e.touches.length === 2 && lastTouchDistance.current !== null) {
+    if (e.touches.length === 2 && lastTouchDistance.current !== null && containerRef.current) {
       const distance = Math.hypot(
         e.touches[0].clientX - e.touches[1].clientX,
         e.touches[0].clientY - e.touches[1].clientY

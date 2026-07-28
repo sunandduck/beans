@@ -11,6 +11,8 @@ import {
   Wand2,
   X,
   Zap,
+  FileInput,
+  Grid3X3,
 } from "lucide-react";
 import {
   processImage,
@@ -23,6 +25,8 @@ import {
   type MardColor,
 } from "@/lib/perler-engine-simple";
 import PerlerEditor from "@/components/PerlerEditor";
+import BeadMode from "@/components/BeadMode";
+import { extractMetadata, validateMetadata, type PerlerMetadata } from "@/lib/png-metadata";
 
 // 自动生成 5 种尺寸（长边格数）
 const SIZE_OPTIONS = [40, 60, 100, 130, 150] as const;
@@ -61,9 +65,14 @@ export default function Home() {
   const [previewImage, setPreviewImage] = useState<string | null>(null); // 图纸预览弹窗
   const [isEditing, setIsEditing] = useState(false); // 编辑模式
   const [editedPatterns, setEditedPatterns] = useState<{ [key: number]: PerlerPattern }>({}); // 编辑后的图纸
+  const [isBeadMode, setIsBeadMode] = useState(false); // 拼豆模式
+  const [beadModeMetadata, setBeadModeMetadata] = useState<PerlerMetadata | null>(null); // 拼豆模式元数据
+  const [beadModeImage, setBeadModeImage] = useState<string | null>(null); // 拼豆模式图片
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
+  const importFileInputRef = useRef<HTMLInputElement>(null); // 导入图纸文件输入
+  const patternInputRef = useRef<HTMLInputElement>(null); // 拼豆模式文件输入
 
   const handleFileSelect = useCallback((file: File) => {
     if (!file.type.startsWith("image/")) {
@@ -209,6 +218,58 @@ export default function Home() {
     setIsEditing(false);
   }, []);
 
+  // 导入图纸
+  const handleImportPattern = useCallback(async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      setError("请上传图片文件");
+      return;
+    }
+
+    try {
+      // 读取文件为 Data URL
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const dataUrl = e.target?.result as string;
+
+        // 提取元数据
+        const metadata = await extractMetadata(dataUrl);
+
+        if (!metadata) {
+          setError("这不是本工具生成的图纸，无法导入");
+          return;
+        }
+
+        // 验证元数据
+        const isValid = validateMetadata(metadata);
+        if (!isValid) {
+          setError("图纸数据已损坏，无法导入");
+          return;
+        }
+
+        setBeadModeImage(dataUrl);
+        setBeadModeMetadata(metadata);
+        setIsBeadMode(true);
+        setError(null);
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      console.error("Import error:", err);
+      setError("导入失败，请重试");
+    }
+  }, []);
+
+  // 退出拼豆模式
+  const handleExitBeadMode = useCallback(() => {
+    setIsBeadMode(false);
+    setBeadModeMetadata(null);
+    setBeadModeImage(null);
+  }, []);
+
+  // 点击导入图纸按钮
+  const handleImportClick = useCallback(() => {
+    patternInputRef.current?.click();
+  }, []);
+
   // 获取当前显示的图纸（优先使用编辑后的）
   const currentPattern = patterns[selectedPatternIdx]?.pattern;
   const currentSize = patterns[selectedPatternIdx]?.size;
@@ -305,6 +366,31 @@ export default function Home() {
                 }}
                 className="hidden"
               />
+            </div>
+
+            {/* Import pattern button */}
+            <div className="text-center">
+              <button
+                onClick={() => patternInputRef.current?.click()}
+                className="inline-flex items-center gap-2 px-6 py-3 bg-[#7BC8B0] text-white font-pixel text-xs pixel-transition hover:bg-[#6ab8a0]"
+                style={{ boxShadow: "3px 3px 0 #5a9e8a" }}
+              >
+                <FileInput className="w-4 h-4" />
+                导入拼豆图纸（进入拼豆模式）
+              </button>
+              <input
+                ref={patternInputRef}
+                type="file"
+                accept=".png"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleImportPattern(file);
+                }}
+                className="hidden"
+              />
+              <p className="text-xs text-[#7A756E] mt-2">
+                仅支持本工具生成的拼豆图纸
+              </p>
             </div>
 
             {/* How it works */}
@@ -604,6 +690,19 @@ export default function Home() {
                     <span className="font-cute text-lg">编辑图纸</span>
                   </button>
                   <button
+                    onClick={() => {
+                      // 进入拼豆模式
+                      setIsBeadMode(true);
+                    }}
+                    className="pixel-btn flex-1 py-3 bg-[#7BC8B0] hover:bg-[#6AB8A0] text-white font-bold flex items-center justify-center gap-2"
+                    style={{ borderWidth: 3, borderColor: "#2D2A26", boxShadow: "4px 4px 0 #2D2A26" }}
+                  >
+                    <Grid3X3 className="w-5 h-5" />
+                    <span className="font-cute text-lg">拼豆模式</span>
+                  </button>
+                </div>
+                <div className="flex gap-3">
+                  <button
                     onClick={async () => {
                       const dataURL = generatePatternImage(displayPattern);
                       const filename = `perler-pattern-${displayPattern.width}x${displayPattern.height}.png`;
@@ -647,7 +746,7 @@ export default function Home() {
                   </button>
                   <button
                     onClick={() => downloadColorList(displayPattern)}
-                    className="pixel-btn flex-1 py-3 bg-[#7BC8B0] hover:bg-[#6AB8A0] text-white font-bold flex items-center justify-center gap-2"
+                    className="pixel-btn flex-1 py-3 bg-[#9B8EC7] hover:bg-[#8A7DB6] text-white font-bold flex items-center justify-center gap-2"
                     style={{ borderWidth: 3, borderColor: "#2D2A26", boxShadow: "4px 4px 0 #2D2A26" }}
                   >
                     <Download className="w-5 h-5" />
@@ -784,6 +883,14 @@ export default function Home() {
               handleSaveEdit(currentSize, modifiedPattern);
             }
           }}
+        />
+      )}
+
+      {/* Bead Mode */}
+      {isBeadMode && beadModeMetadata && beadModeImage && (
+        <BeadMode
+          metadata={beadModeMetadata}
+          onClose={handleExitBeadMode}
         />
       )}
     </div>

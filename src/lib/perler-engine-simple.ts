@@ -3,6 +3,12 @@
 
 import { MardColor, MARD_221_PALETTE, findNearestColor as findNearestColorFromPalette } from "./perler-engine";
 import { floydSteinbergDither, autoMergeSimilarColors, filterNoiseColors } from "./perler-engine-dither";
+import {
+  createPerlerMetadata,
+  embedMetadataToPNG,
+  extractMetadataFromPNG,
+  type PerlerMetadata,
+} from "./png-metadata";
 
 // 重新导出 MARD_221_PALETTE 和 MardColor 供页面使用
 export { MARD_221_PALETTE };
@@ -766,16 +772,37 @@ export function generatePatternImage(
   return canvas.toDataURL("image/png");
 }
 
-// 下载图纸图片（兼容旧调用）
-export function downloadPatternImage(
+// 下载图纸图片（嵌入元数据）
+export async function downloadPatternImage(
   pattern: PerlerPattern,
   cellSize: number = 20,
   showColorCode: boolean = true
-): void {
+): Promise<void> {
   const dataURL = generatePatternImage(pattern, cellSize, showColorCode);
+
+  // 创建元数据
+  const beads = [];
+  for (let row = 0; row < pattern.height; row++) {
+    for (let col = 0; col < pattern.width; col++) {
+      const bead = pattern.beads.find(b => b.row === row && b.col === col);
+      const colorCode = bead?.color?.code || "";
+      beads.push({
+        col,
+        row,
+        colorCode: colorCode || "",
+        isEmpty: !colorCode,
+      });
+    }
+  }
+
+  const metadata = createPerlerMetadata(pattern.width, pattern.height, beads);
+
+  // 嵌入元数据到 PNG
+  const pngWithMetadata = await embedMetadataToPNG(dataURL, metadata);
+
   const link = document.createElement("a");
   link.download = `perler-pattern-${pattern.width}x${pattern.height}.png`;
-  link.href = dataURL;
+  link.href = pngWithMetadata;
   link.click();
 }
 

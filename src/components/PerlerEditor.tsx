@@ -512,6 +512,9 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
             >
               <ZoomIn className="w-4 h-4" />
             </button>
+            <span className="text-xs text-[#7A756E] ml-2 hidden sm:block">
+               选中颜色后，单指拖动可批量修改，双指拖动可移动图纸
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <button

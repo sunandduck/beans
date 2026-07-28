@@ -706,39 +706,7 @@ export default function Home() {
                 <div className="flex gap-3">
                   <button
                     onClick={async () => {
-                      const dataURL = generatePatternImage(displayPattern);
-                      const filename = `perler-pattern-${displayPattern.width}x${displayPattern.height}.png`;
-                      
-                      // 优先尝试 Web Share API（移动端最可靠）
-                      if (navigator.share && navigator.canShare) {
-                        try {
-                          const response = await fetch(dataURL);
-                          const blob = await response.blob();
-                          const file = new File([blob], filename, { type: "image/png" });
-                          
-                          if (navigator.canShare({ files: [file] })) {
-                            await navigator.share({ files: [file], title: "拼豆图纸" });
-                            return;
-                          }
-                        } catch (err) {
-                          console.log("Share failed, trying download:", err);
-                        }
-                      }
-                      
-                      // 降级方案：使用 blob URL 下载
-                      try {
-                        const response = await fetch(dataURL);
-                        const blob = await response.blob();
-                        const blobUrl = URL.createObjectURL(blob);
-                        const link = document.createElement("a");
-                        link.download = filename;
-                        link.href = blobUrl;
-                        link.click();
-                        URL.revokeObjectURL(blobUrl);
-                      } catch (err) {
-                        console.error("Download failed:", err);
-                        alert("保存失败，请长按图片手动保存");
-                      }
+                      await downloadPatternImage(displayPattern);
                     }}
                     className="pixel-btn flex-1 py-3 bg-[#E8734A] hover:bg-[#D4623B] text-white font-bold flex items-center justify-center gap-2"
                     style={{ borderWidth: 3, borderColor: "#2D2A26", boxShadow: "4px 4px 0 #2D2A26" }}

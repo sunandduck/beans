@@ -39,6 +39,8 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
   const [isSpacePressed, setIsSpacePressed] = useState(false); // Space 键按下状态
   const [editMode, setEditMode] = useState<"draw" | "move">("move"); // 编辑模式：绘制/移动
   const [showSaveConfirm, setShowSaveConfirm] = useState(false); // 保存确认对话框
+  const [isPanning, setIsPanning] = useState(false); // 是否正在拖拽画布
+  const panStart = useRef<{ x: number; y: number } | null>(null); // 拖拽起始位置
 
   // 获取当前图纸使用的色号
   const usedColors = Object.keys(pattern.colorStats)
@@ -271,31 +273,41 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
       if (isMoveMode) {
         // 移动模式：开始拖拽画布
         setIsDrawing(false);
+        setIsPanning(true);
+        panStart.current = { x: e.clientX - offset.x, y: e.clientY - offset.y };
       } else if (e.button === 0) {
         // 绘制模式：开始绘制
         setIsDrawing(true);
         modifyPixel(e.clientX, e.clientY);
       }
     },
-    [selectedColor, modifyPixel, isSpacePressed]
+    [selectedColor, modifyPixel, isSpacePressed, offset]
   );
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       const isMoveMode = isSpacePressed || !selectedColor;
       
-      if (isDrawing && !isMoveMode) {
+      if (isPanning && panStart.current) {
+        // 拖拽画布
+        setOffset({
+          x: e.clientX - panStart.current.x,
+          y: e.clientY - panStart.current.y
+        });
+      } else if (isDrawing && !isMoveMode) {
         // 绘制模式：绘制像素
         modifyPixel(e.clientX, e.clientY);
       }
     },
-    [isDrawing, selectedColor, modifyPixel, isSpacePressed]
+    [isDrawing, isPanning, selectedColor, modifyPixel, isSpacePressed]
   );
 
   const handleMouseUp = useCallback(() => {
     if (isDrawing) {
       finishDrawing();
     }
+    setIsPanning(false);
+    panStart.current = null;
   }, [isDrawing, finishDrawing]);
 
   // 触摸事件（移动端）- 单指绘制，双指缩放 + 拖动（合并逻辑）

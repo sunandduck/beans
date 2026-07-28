@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import { X, ZoomIn, ZoomOut, Undo2, Redo2, Download, RotateCcw, Check } from "lucide-react";
+import { X, ZoomIn, ZoomOut, Undo2, Redo2, Download, RotateCcw, Check, Move, Paintbrush } from "lucide-react";
 import {
   type PerlerPattern,
   type PerlerBead,
@@ -38,6 +38,8 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [isModified, setIsModified] = useState(false);
   const [isDrawing, setIsDrawing] = useState(false);
+  const [isSpacePressed, setIsSpacePressed] = useState(false); // Space 键按下状态
+  const [editMode, setEditMode] = useState<"draw" | "move">("move"); // 编辑模式：绘制/移动
 
   // 获取当前图纸使用的色号
   const usedColors = Object.keys(pattern.colorStats)
@@ -55,6 +57,30 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
     },
     [history, historyIndex]
   );
+
+  // Space 键监听（按住临时切换为移动模式）
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === "Space" && !e.repeat) {
+        e.preventDefault(); // 防止页面滚动
+        setIsSpacePressed(true);
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === "Space") {
+        setIsSpacePressed(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
+  }, []);
 
   // 撤销
   const handleUndo = useCallback(() => {
@@ -240,33 +266,38 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
   // 鼠标拖拽事件（未选中颜色时拖拽画布，选中颜色时绘制）
   const handleMouseDown = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
-      if (!selectedColor) {
-        // 未选中颜色：拖拽画布
+      // 按住 Space 键时临时切换为移动模式
+      const isMoveMode = isSpacePressed || !selectedColor;
+      
+      if (isMoveMode) {
+        // 移动模式：拖拽画布
         setIsDragging(true);
         setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
       } else if (e.button === 0) {
-        // 选中颜色：开始绘制
+        // 绘制模式：开始绘制
         setIsDrawing(true);
         modifyPixel(e.clientX, e.clientY);
       }
     },
-    [selectedColor, offset, modifyPixel]
+    [selectedColor, offset, modifyPixel, isSpacePressed]
   );
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
-      if (isDragging && !selectedColor) {
-        // 拖拽画布
+      const isMoveMode = isSpacePressed || !selectedColor;
+      
+      if (isDragging && isMoveMode) {
+        // 移动模式：拖拽画布
         setOffset({
           x: e.clientX - dragStart.x,
           y: e.clientY - dragStart.y,
         });
-      } else if (isDrawing && selectedColor) {
-        // 绘制像素
+      } else if (isDrawing && !isMoveMode) {
+        // 绘制模式：绘制像素
         modifyPixel(e.clientX, e.clientY);
       }
     },
-    [isDragging, dragStart, isDrawing, selectedColor, modifyPixel]
+    [isDragging, dragStart, isDrawing, selectedColor, modifyPixel, isSpacePressed]
   );
 
   const handleMouseUp = useCallback(() => {
@@ -282,19 +313,28 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
 
   const handleTouchStart = useCallback(
     (e: React.TouchEvent) => {
-      if (e.touches.length === 1) {
+      if (e.touches.length === 2) {
+        // 双指：移动画布
+        setIsDragging(true);
+        const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        setDragStart({ x: midX - offset.x, y: midY - offset.y });
+      } else if (e.touches.length === 1) {
         const touch = e.touches[0];
         touchStartPos.current = { x: touch.clientX, y: touch.clientY };
 
-        if (!selectedColor) {
-          // 未选中颜色：准备拖拽画布
+        // 单指：根据是否选中颜色决定是绘制还是移动
+        const isMoveMode = !selectedColor;
+        
+        if (isMoveMode) {
+          // 移动模式：准备拖拽画布
           setIsDragging(true);
           setDragStart({
             x: touch.clientX - offset.x,
             y: touch.clientY - offset.y,
           });
         } else {
-          // 选中颜色：开始绘制
+          // 绘制模式：开始绘制
           setIsDrawing(true);
           modifyPixel(touch.clientX, touch.clientY);
         }
@@ -305,19 +345,28 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
 
   const handleTouchMove = useCallback(
     (e: React.TouchEvent) => {
-      if (e.touches.length === 1) {
+      if (e.touches.length === 2) {
+        // 双指：移动画布
+        const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        setOffset({
+          x: midX - dragStart.x,
+          y: midY - dragStart.y,
+        });
+      } else if (e.touches.length === 1) {
         const touch = e.touches[0];
+        const isMoveMode = !selectedColor;
 
-        if (isDragging && !selectedColor) {
-          // 拖拽画布
+        if (isDragging && isMoveMode) {
+          // 移动模式：拖拽画布
           setOffset({
             x: touch.clientX - dragStart.x,
             y: touch.clientY - dragStart.y,
           });
-        } else if (isDrawing && selectedColor) {
-          // 绘制像素（批量修改）
+        } else if (isDrawing && !isMoveMode) {
+          // 绘制模式：绘制像素（批量修改）
           modifyPixel(touch.clientX, touch.clientY);
-        } else if (touchStartPos.current && selectedColor === null) {
+        } else if (touchStartPos.current && isMoveMode) {
           // 检测是否移动超过阈值（用于区分点击和拖拽）
           const dx = Math.abs(touch.clientX - touchStartPos.current.x);
           const dy = Math.abs(touch.clientY - touchStartPos.current.y);
@@ -383,6 +432,26 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
           {isModified && <span className="text-xs text-[#E8734A]">● 已修改</span>}
         </div>
         <div className="flex items-center gap-2">
+          {/* 模式切换按钮 */}
+          <button
+            onClick={() => {
+              if (selectedColor !== null) {
+                setSelectedColor(null);
+              } else {
+                // 如果没有选中颜色，提示用户先选择颜色
+                alert('请先在底部选择一个颜色，然后才能切换到绘制模式');
+              }
+            }}
+            className={`w-8 h-8 flex items-center justify-center border-2 ${
+              selectedColor === null
+                ? 'bg-[#E8734A] border-[#E8734A] text-white'
+                : 'bg-[#FAF8F5] border-[#E8E4DF] hover:border-[#E8734A]'
+            }`}
+            style={{ borderWidth: 2 }}
+            title={selectedColor === null ? '移动模式' : '绘制模式（点击已选中的颜色可切换）'}
+          >
+            <Move className="w-4 h-4" />
+          </button>
           <button
             onClick={handleUndo}
             disabled={historyIndex === 0}
@@ -531,7 +600,7 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
               {usedColors.map((color) => (
                 <button
                   key={color.code}
-                  onClick={() => setSelectedColor(color)}
+                  onClick={() => setSelectedColor(selectedColor?.code === color.code ? null : color)}
                   className={`flex-shrink-0 flex flex-col items-center gap-1 p-2 border-2 transition-all min-w-[56px] ${
                     selectedColor?.code === color.code
                       ? "border-[#E8734A] bg-orange-50"
@@ -557,7 +626,7 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
                 {usedColors.map((color) => (
                   <button
                     key={color.code}
-                    onClick={() => setSelectedColor(color)}
+                    onClick={() => setSelectedColor(selectedColor?.code === color.code ? null : color)}
                     className={`w-full flex items-center gap-2 p-2 border-2 transition-all ${
                       selectedColor?.code === color.code
                         ? "border-[#E8734A] bg-orange-50"

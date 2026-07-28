@@ -111,21 +111,25 @@ export default function BeadMode({ metadata, onClose }: BeadModeProps) {
         ctx.fillStyle = color;
         ctx.fillRect(x, y, cellSize, cellSize);
 
-        // 绘制边框
-        ctx.strokeStyle = '#E0E0E0';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(x, y, cellSize, cellSize);
-
-        // 高亮选中的颜色
-        if (selectedColor && colorCode === selectedColor) {
-          ctx.strokeStyle = '#FFD700';
-          ctx.lineWidth = 3;
-          ctx.strokeRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
+        // 如果有选中的颜色，非选中色号变暗
+        if (selectedColor && colorCode !== selectedColor) {
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+          ctx.fillRect(x, y, cellSize, cellSize);
         }
+
+        // 绘制边框
+        ctx.strokeStyle = selectedColor ? (colorCode === selectedColor ? '#FFD700' : '#888888') : '#E0E0E0';
+        ctx.lineWidth = selectedColor ? (colorCode === selectedColor ? 3 : 1) : 1;
+        ctx.strokeRect(x, y, cellSize, cellSize);
 
         // 绘制色号文字（仅在格子足够大时显示）
         if (cellSize > 20) {
-          ctx.fillStyle = color === '#FFFFFF' ? '#000000' : '#FFFFFF';
+          // 根据背景调整文字颜色
+          if (selectedColor && colorCode !== selectedColor) {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+          } else {
+            ctx.fillStyle = color === '#FFFFFF' ? '#000000' : '#FFFFFF';
+          }
           ctx.font = `${Math.max(10, cellSize * 0.3)}px sans-serif`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';

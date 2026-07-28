@@ -29,9 +29,9 @@ export default function BeadMode({ metadata, onClose }: BeadModeProps) {
   // 统计使用的颜色
   useEffect(() => {
     const colorCount: Record<string, number> = {};
-    metadata.beads.forEach((bead) => {
-      if (!bead.isEmpty) {
-        colorCount[bead.colorCode] = (colorCount[bead.colorCode] || 0) + 1;
+    metadata.beads.forEach((colorCode) => {
+      if (colorCode) {
+        colorCount[colorCode] = (colorCount[colorCode] || 0) + 1;
       }
     });
     const colors = Object.entries(colorCount)
@@ -63,20 +63,22 @@ export default function BeadMode({ metadata, onClose }: BeadModeProps) {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // 绘制像素格
-    beads.forEach((bead) => {
-      const x = bead.col * cellSize;
-      const y = bead.row * cellSize;
+    metadata.beads.forEach((colorCode, index) => {
+      const col = index % width;
+      const row = Math.floor(index / width);
+      const x = col * cellSize;
+      const y = row * cellSize;
 
-      if (bead.isEmpty) {
+      if (!colorCode) {
         // 空白格
         ctx.fillStyle = "#F5F5F5";
         ctx.fillRect(x, y, cellSize, cellSize);
       } else {
-        const color = MARD_221_PALETTE.find((c: MardColor) => c.code === bead.colorCode);
+        const color = MARD_221_PALETTE.find((c: MardColor) => c.code === colorCode);
         if (color) {
           if (selectedColor) {
             // 高亮模式
-            if (bead.colorCode === selectedColor) {
+            if (colorCode === selectedColor) {
               // 高亮显示
               ctx.fillStyle = color.hex;
               ctx.fillRect(x, y, cellSize, cellSize);
@@ -93,7 +95,7 @@ export default function BeadMode({ metadata, onClose }: BeadModeProps) {
               ctx.font = `${Math.max(8, cellSize / 3)}px monospace`;
               ctx.textAlign = "center";
               ctx.textBaseline = "middle";
-              ctx.fillText(bead.colorCode, x + cellSize / 2, y + cellSize / 2);
+              ctx.fillText(colorCode, x + cellSize / 2, y + cellSize / 2);
             }
           } else {
             // 正常显示

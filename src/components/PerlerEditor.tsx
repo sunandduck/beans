@@ -308,36 +308,29 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
     }
   }, [isDrawing, finishDrawing]);
 
-  // 触摸事件（移动端）- 未选中颜色时拖拽画布，选中颜色时绘制
+  // 触摸事件（移动端）- 单指绘制，双指移动
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
 
   const handleTouchStart = useCallback(
     (e: React.TouchEvent) => {
       if (e.touches.length === 2) {
         // 双指：移动画布
+        e.preventDefault();
         setIsDragging(true);
         const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
         const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
         setDragStart({ x: midX - offset.x, y: midY - offset.y });
       } else if (e.touches.length === 1) {
+        // 单指：只用于绘制，禁止移动画布
         const touch = e.touches[0];
         touchStartPos.current = { x: touch.clientX, y: touch.clientY };
 
-        // 单指：根据是否选中颜色决定是绘制还是移动
-        const isMoveMode = !selectedColor;
-        
-        if (isMoveMode) {
-          // 移动模式：准备拖拽画布
-          setIsDragging(true);
-          setDragStart({
-            x: touch.clientX - offset.x,
-            y: touch.clientY - offset.y,
-          });
-        } else {
-          // 绘制模式：开始绘制
+        if (selectedColor) {
+          // 选中颜色：开始绘制
           setIsDrawing(true);
           modifyPixel(touch.clientX, touch.clientY);
         }
+        // 未选中颜色：不做任何操作（禁止单指移动）
       }
     },
     [selectedColor, offset, modifyPixel]
@@ -347,36 +340,22 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
     (e: React.TouchEvent) => {
       if (e.touches.length === 2) {
         // 双指：移动画布
+        e.preventDefault();
         const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
         const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
         setOffset({
           x: midX - dragStart.x,
           y: midY - dragStart.y,
         });
-      } else if (e.touches.length === 1) {
+      } else if (e.touches.length === 1 && isDrawing) {
+        // 单指 + 绘制中：批量修改颜色
+        e.preventDefault();
         const touch = e.touches[0];
-        const isMoveMode = !selectedColor;
-
-        if (isDragging && isMoveMode) {
-          // 移动模式：拖拽画布
-          setOffset({
-            x: touch.clientX - dragStart.x,
-            y: touch.clientY - dragStart.y,
-          });
-        } else if (isDrawing && !isMoveMode) {
-          // 绘制模式：绘制像素（批量修改）
-          modifyPixel(touch.clientX, touch.clientY);
-        } else if (touchStartPos.current && isMoveMode) {
-          // 检测是否移动超过阈值（用于区分点击和拖拽）
-          const dx = Math.abs(touch.clientX - touchStartPos.current.x);
-          const dy = Math.abs(touch.clientY - touchStartPos.current.y);
-          if (dx > 10 || dy > 10) {
-            touchStartPos.current = null;
-          }
-        }
+        modifyPixel(touch.clientX, touch.clientY);
       }
+      // 单指 + 未选中颜色：不做任何操作（禁止单指移动）
     },
-    [isDragging, dragStart, isDrawing, selectedColor, modifyPixel]
+    [isDrawing, dragStart, modifyPixel]
   );
 
   const handleTouchEnd = useCallback(
@@ -512,8 +491,8 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
             >
               <ZoomIn className="w-4 h-4" />
             </button>
-            <span className="text-xs text-[#7A756E] ml-2 hidden sm:block">
-               选中颜色后，单指拖动可批量修改，双指拖动可移动图纸
+            <span className="text-[10px] text-[#7A756E] ml-2">
+              💡 移动端双指操作拖动图纸，选中颜色后可批量修改色块
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -543,7 +522,7 @@ export default function PerlerEditor({ pattern, onClose, onSave }: PerlerEditorP
           className="flex-1 overflow-auto bg-[#FAF8F5] p-2 md:p-4"
           style={{ 
             cursor: isDrawing ? "crosshair" : isDragging ? "grabbing" : "grab",
-            touchAction: "manipulation"
+            touchAction: "none"
           }}
         >
             <div

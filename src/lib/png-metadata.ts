@@ -137,8 +137,14 @@ export async function embedMetadataToPNG(
   newBytes.set(textChunk, ihdrEnd);
   newBytes.set(bytes.subarray(ihdrEnd), ihdrEnd + textChunk.length);
 
-  // 转换回 dataURL
-  const newBase64 = btoa(String.fromCharCode(...newBytes));
+  // 转换回 dataURL（分块处理避免栈溢出）
+  let newBase64 = "";
+  const chunkSize = 8192;
+  for (let i = 0; i < newBytes.length; i += chunkSize) {
+    const chunk = newBytes.subarray(i, Math.min(i + chunkSize, newBytes.length));
+    newBase64 += String.fromCharCode(...chunk);
+  }
+  newBase64 = btoa(newBase64);
   const result = `data:image/png;base64,${newBase64}`;
   console.log("[Embed] 嵌入完成，新 PNG 大小:", result.length);
   return result;

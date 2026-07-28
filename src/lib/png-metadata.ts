@@ -78,6 +78,8 @@ export async function embedMetadataToPNG(
 
   // 压缩元数据
   const metadataString = compressMetadata(metadata);
+  console.log("[Embed] 元数据字符串长度:", metadataString.length);
+  console.log("[Embed] 元数据前 100 字符:", metadataString.substring(0, 100));
   const metadataBytes = new TextEncoder().encode(metadataString);
 
   // 构建 tEXt 块
@@ -165,6 +167,8 @@ export async function extractMetadataFromPNG(
     // 搜索 tEXt 块
     const textChunkType = new TextEncoder().encode("tEXt");
     const keyword = new TextEncoder().encode(METADATA_KEY);
+    console.log("[Extract] 图片大小:", bytes.length, "bytes");
+    console.log("[Extract] 搜索关键字:", METADATA_KEY);
 
     // 从 IHDR 块之后开始搜索
     let offset = 8 + 25; // 签名 (8) + IHDR 块 (25)
@@ -187,6 +191,7 @@ export async function extractMetadataFromPNG(
         chunkType[2] === textChunkType[2] &&
         chunkType[3] === textChunkType[3]
       ) {
+        console.log("[Extract] 找到 tEXt 块，长度:", chunkLength);
         // 读取关键字
         const chunkData = bytes.subarray(offset + 8, offset + 8 + chunkLength);
         let nullIndex = -1;
@@ -202,6 +207,7 @@ export async function extractMetadataFromPNG(
           const chunkText = chunkData.subarray(nullIndex + 1);
 
           // 检查关键字是否匹配
+          console.log("[Extract] 块关键字长度:", chunkKeyword.length, "期望:", keyword.length);
           if (chunkKeyword.length === keyword.length) {
             let match = true;
             for (let i = 0; i < keyword.length; i++) {
@@ -210,11 +216,15 @@ export async function extractMetadataFromPNG(
                 break;
               }
             }
+            console.log("[Extract] 关键字匹配:", match);
 
             if (match) {
               // 找到元数据，解压
               const metadataString = new TextDecoder().decode(chunkText);
-              return decompressMetadata(metadataString);
+              console.log("[Extract] 解压前字符串长度:", metadataString.length);
+              const result = decompressMetadata(metadataString);
+              console.log("[Extract] 解压结果:", result);
+              return result;
             }
           }
         }

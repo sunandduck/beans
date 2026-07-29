@@ -756,16 +756,13 @@ export default function Home() {
                       }
                     }
                     
-                    // 降级方案：使用 blob URL 下载
+                    // 降级方案：使用 Blob URL + window.open（用户长按保存）
                     try {
                       const response = await fetch(previewImage);
                       const blob = await response.blob();
                       const blobUrl = URL.createObjectURL(blob);
-                      const link = document.createElement("a");
-                      link.download = filename;
-                      link.href = blobUrl;
-                      link.click();
-                      URL.revokeObjectURL(blobUrl);
+                      window.open(blobUrl, "_blank");
+                      setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
                     } catch (err) {
                       console.error("Download failed:", err);
                       alert("保存失败，请长按图片手动保存");

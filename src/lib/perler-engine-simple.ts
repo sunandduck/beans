@@ -796,8 +796,43 @@ export async function downloadPatternImage(
   // 嵌入元数据到 PNG
   const pngWithMetadata = await embedMetadataToPNG(dataURL, metadata);
 
+  const filename = `perler-pattern-${pattern.width}x${pattern.height}.png`;
+
+  // 1. 优先使用 Web Share API（移动端可保存到相册）
+  if (typeof navigator !== "undefined" && navigator.share && navigator.canShare) {
+    try {
+      const response = await fetch(pngWithMetadata);
+      const blob = await response.blob();
+      const file = new File([blob], filename, { type: "image/png" });
+
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: "拼豆图纸" });
+        return; // 成功，用户已选择保存
+      }
+    } catch (err) {
+      console.log("Share failed, trying fallback:", err);
+    }
+  }
+
+  // 2. 降级方案：使用 Blob URL + window.open（用户长按保存）
+  try {
+    const response = await fetch(pngWithMetadata);
+    const blob = await response.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    
+    // 打开新窗口显示图片，用户可长按保存
+    window.open(blobUrl, "_blank");
+    
+    // 延迟释放 Blob URL（确保图片已加载）
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+    return;
+  } catch (err) {
+    console.log("Blob URL failed, trying direct download:", err);
+  }
+
+  // 3. 最后降级：使用 download 属性（PC 端或旧浏览器）
   const link = document.createElement("a");
-  link.download = `perler-pattern-${pattern.width}x${pattern.height}.png`;
+  link.download = filename;
   link.href = pngWithMetadata;
   link.click();
 }

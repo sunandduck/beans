@@ -8,7 +8,8 @@ interface BeadModeProps {
     version: string;
     width: number;
     height: number;
-    beads: string[];
+    colorMap?: string[];
+    beads: string[] | number[];
   };
   onClose: () => void;
 }
@@ -23,7 +24,21 @@ export default function BeadMode({ metadata, onClose }: BeadModeProps) {
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [colorStats, setColorStats] = useState<Map<string, number>>(new Map());
 
-  const { width, height, beads } = metadata;
+  const { width, height } = metadata;
+
+  // 将数字索引的 beads 转换为字符串数组
+  const beads: string[] = (() => {
+    if (typeof metadata.beads[0] === "number") {
+      // 新格式：数字索引 + colorMap
+      const colorMap = metadata.colorMap || [];
+      return (metadata.beads as number[]).map((index) => {
+        if (index < 0 || index >= colorMap.length) return "";
+        return colorMap[index];
+      });
+    }
+    // 旧格式：直接是字符串数组
+    return metadata.beads as string[];
+  })();
 
   // 计算色号统计
   useEffect(() => {

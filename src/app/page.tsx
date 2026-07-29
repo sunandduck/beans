@@ -739,7 +739,17 @@ export default function Home() {
                     const pattern = patterns[selectedPatternIdx].pattern;
                     const filename = `perler-pattern-${pattern.width}x${pattern.height}.png`;
                     
-                    // 优先尝试 Web Share API（移动端最可靠）
+                    // 1. 检测内嵌浏览器
+                    const userAgent = navigator.userAgent;
+                    const isWeChat = /MicroMessenger/i.test(userAgent);
+                    const isTelegram = /Telegram/i.test(userAgent);
+                    
+                    if (isWeChat || isTelegram) {
+                      alert("请点击右上角「···」，选择「在浏览器中打开」后下载");
+                      return;
+                    }
+                    
+                    // 2. 优先尝试 Web Share API（移动端最可靠）
                     if (navigator.share && navigator.canShare) {
                       try {
                         const response = await fetch(previewImage);
@@ -756,13 +766,9 @@ export default function Home() {
                       }
                     }
                     
-                    // 降级方案：使用 Blob URL + window.open（用户长按保存）
+                    // 3. 降级方案：使用 data URL + window.open（用户长按保存）
                     try {
-                      const response = await fetch(previewImage);
-                      const blob = await response.blob();
-                      const blobUrl = URL.createObjectURL(blob);
-                      window.open(blobUrl, "_blank");
-                      setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+                      window.open(previewImage, "_blank");
                     } catch (err) {
                       console.error("Download failed:", err);
                       alert("保存失败，请长按图片手动保存");

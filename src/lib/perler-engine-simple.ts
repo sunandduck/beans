@@ -798,7 +798,18 @@ export async function downloadPatternImage(
 
   const filename = `perler-pattern-${pattern.width}x${pattern.height}.png`;
 
-  // 1. 优先使用 Web Share API（移动端可保存到相册）
+  // 1. 检测内嵌浏览器（微信/Telegram 等）
+  const userAgent = typeof navigator !== "undefined" ? navigator.userAgent : "";
+  const isWeChat = /MicroMessenger/i.test(userAgent);
+  const isTelegram = /Telegram/i.test(userAgent);
+
+  if (isWeChat || isTelegram) {
+    // 内嵌浏览器无法直接下载，提示用户去系统浏览器打开
+    alert("请点击右上角「···」，选择「在浏览器中打开」后下载");
+    return;
+  }
+
+  // 2. 优先使用 Web Share API（移动端可保存到相册）
   if (typeof navigator !== "undefined" && navigator.share && navigator.canShare) {
     try {
       const response = await fetch(pngWithMetadata);
@@ -814,23 +825,16 @@ export async function downloadPatternImage(
     }
   }
 
-  // 2. 降级方案：使用 Blob URL + window.open（用户长按保存）
+  // 3. 降级方案：使用 data URL + window.open（用户长按保存）
+  // 注意：使用 data URL 而不是 Blob URL，因为某些安卓浏览器不支持 Blob URL
   try {
-    const response = await fetch(pngWithMetadata);
-    const blob = await response.blob();
-    const blobUrl = URL.createObjectURL(blob);
-    
-    // 打开新窗口显示图片，用户可长按保存
-    window.open(blobUrl, "_blank");
-    
-    // 延迟释放 Blob URL（确保图片已加载）
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+    window.open(pngWithMetadata, "_blank");
     return;
   } catch (err) {
-    console.log("Blob URL failed, trying direct download:", err);
+    console.log("window.open failed, trying direct download:", err);
   }
 
-  // 3. 最后降级：使用 download 属性（PC 端或旧浏览器）
+  // 4. 最后降级：使用 download 属性（PC 端或旧浏览器）
   const link = document.createElement("a");
   link.download = filename;
   link.href = pngWithMetadata;

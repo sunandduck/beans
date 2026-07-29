@@ -18,8 +18,6 @@ import {
   renderPattern,
   generatePatternImage,
   preparePatternImage,
-  isInAppBrowser,
-  getInAppBrowserHint,
   MARD_221_PALETTE,
   type PerlerPattern,
   type MardColor,
@@ -806,18 +804,9 @@ export default function Home() {
 
                 {/* 提示文字 */}
                 <div className="text-center mb-6 px-4">
-                  {isInAppBrowser() ? (
-                    <>
-                      <p className="text-white text-xl font-bold mb-2">请先在浏览器中打开</p>
-                      <p className="text-white/80 text-base">{getInAppBrowserHint()}</p>
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-white text-xl font-bold mb-2">长按图片保存到相册</p>
-                      <p className="text-white/60 text-sm">iOS：长按图片 → 选择"存储图像"</p>
-                      <p className="text-white/60 text-sm">安卓：长按图片 → 选择"保存图片"</p>
-                    </>
-                  )}
+                  <p className="text-white text-xl font-bold mb-2">长按图片保存到相册</p>
+                  <p className="text-white/60 text-sm">iOS：长按图片 → 选择"存储图像"</p>
+                  <p className="text-white/60 text-sm">安卓：长按图片 → 选择"保存图片"</p>
                 </div>
 
                 {/* 图片预览 */}

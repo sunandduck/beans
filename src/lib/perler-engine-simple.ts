@@ -800,26 +800,6 @@ export async function preparePatternImage(
   return pngWithMetadata;
 }
 
-// 检测是否在微信/Telegram 等内嵌浏览器中
-export function isInAppBrowser(): boolean {
-  if (typeof navigator === "undefined") return false;
-  const userAgent = navigator.userAgent;
-  return /MicroMessenger/i.test(userAgent) || /Telegram/i.test(userAgent);
-}
-
-// 获取内嵌浏览器的提示文案
-export function getInAppBrowserHint(): string {
-  if (typeof navigator === "undefined") return "";
-  const userAgent = navigator.userAgent;
-  if (/MicroMessenger/i.test(userAgent)) {
-    return "请点击右上角「···」，选择「在浏览器中打开」后长按图片保存";
-  }
-  if (/Telegram/i.test(userAgent)) {
-    return "请点击右上角「···」，选择「在浏览器中打开」后长按图片保存";
-  }
-  return "";
-}
-
 // 导出色号清单 CSV
 export function downloadColorList(pattern: PerlerPattern): void {
   const sortedColors = Object.entries(pattern.colorStats)

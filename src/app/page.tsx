@@ -12,7 +12,6 @@ import {
   X,
   Zap,
   FileInput,
-  Grid3X3,
 } from "lucide-react";
 import {
   processImage,
@@ -684,22 +683,11 @@ export default function Home() {
                 <div className="flex gap-3">
                   <button
                     onClick={() => setIsEditing(true)}
-                    className="pixel-btn flex-1 py-3 bg-[#6BA3D6] hover:bg-[#5A92C5] text-white font-bold flex items-center justify-center gap-2"
+                    className="pixel-btn w-full py-3 bg-[#6BA3D6] hover:bg-[#5A92C5] text-white font-bold flex items-center justify-center gap-2"
                     style={{ borderWidth: 3, borderColor: "#2D2A26", boxShadow: "4px 4px 0 #2D2A26" }}
                   >
                     <Palette className="w-5 h-5" />
                     <span className="font-cute text-lg">编辑图纸</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      // 进入拼豆模式
-                      setIsBeadMode(true);
-                    }}
-                    className="pixel-btn flex-1 py-3 bg-[#7BC8B0] hover:bg-[#6AB8A0] text-white font-bold flex items-center justify-center gap-2"
-                    style={{ borderWidth: 3, borderColor: "#2D2A26", boxShadow: "4px 4px 0 #2D2A26" }}
-                  >
-                    <Grid3X3 className="w-5 h-5" />
-                    <span className="font-cute text-lg">拼豆模式</span>
                   </button>
                 </div>
                 <div className="flex gap-3">

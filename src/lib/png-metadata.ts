@@ -4,7 +4,7 @@
  * 使用 gzip 压缩减少元数据大小，支持最大 150×150 图纸
  */
 
-import pako from "pako";
+import { deflate, inflate } from "pako";
 
 // 元数据键名
 const METADATA_KEY = "PerlerBeadData";
@@ -46,7 +46,7 @@ export interface PerlerMetadata {
 function compressMetadata(metadata: PerlerMetadata): string {
   const json = JSON.stringify(metadata);
   // 使用 gzip 压缩
-  const compressed = pako.deflate(json);
+  const compressed = deflate(json);
   // 转换为 base64
   let binary = "";
   for (let i = 0; i < compressed.length; i++) {
@@ -67,7 +67,7 @@ function decompressMetadata(data: string): PerlerMetadata {
     for (let i = 0; i < binary.length; i++) {
       bytes[i] = binary.charCodeAt(i);
     }
-    const json = pako.inflate(bytes, { to: "string" });
+    const json = inflate(bytes, { to: "string" });
     return JSON.parse(json);
   } catch {
     // 如果解压失败，尝试直接解析（向后兼容旧格式）

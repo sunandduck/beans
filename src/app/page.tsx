@@ -17,7 +17,9 @@ import {
   processImage,
   renderPattern,
   generatePatternImage,
-  downloadPatternImage,
+  preparePatternImage,
+  isInAppBrowser,
+  getInAppBrowserHint,
   MARD_221_PALETTE,
   type PerlerPattern,
   type MardColor,
@@ -61,6 +63,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState<"upload" | "settings" | "result">("upload");
   const [previewImage, setPreviewImage] = useState<string | null>(null); // 图纸预览弹窗
+  const [downloadImage, setDownloadImage] = useState<string | null>(null); // 下载预览弹窗
   const [isEditing, setIsEditing] = useState(false); // 编辑模式
   const [editedPatterns, setEditedPatterns] = useState<{ [key: number]: PerlerPattern }>({}); // 编辑后的图纸
   const [isBeadMode, setIsBeadMode] = useState(false); // 拼豆模式
@@ -693,7 +696,13 @@ export default function Home() {
                 <div className="flex gap-3">
                   <button
                     onClick={async () => {
-                      await downloadPatternImage(displayPattern);
+                      try {
+                        const pngWithMetadata = await preparePatternImage(displayPattern);
+                        setDownloadImage(pngWithMetadata);
+                      } catch (err) {
+                        console.error("Failed to prepare pattern image:", err);
+                        setError("生成图纸失败，请重试");
+                      }
                     }}
                     className="pixel-btn w-full py-3 bg-[#E8734A] hover:bg-[#D4623B] text-white font-bold flex items-center justify-center gap-2"
                     style={{ borderWidth: 3, borderColor: "#2D2A26", boxShadow: "4px 4px 0 #2D2A26" }}
@@ -780,6 +789,52 @@ export default function Home() {
                   <Download className="w-5 h-5" />
                   <span>保存到本地</span>
                 </button>
+              </div>
+            )}
+
+            {/* 下载预览弹窗 */}
+            {downloadImage && (
+              <div className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-4">
+                {/* 关闭按钮 */}
+                <button
+                  onClick={() => setDownloadImage(null)}
+                  className="absolute top-4 right-4 z-10 w-12 h-12 bg-white/20 backdrop-blur-sm flex items-center justify-center text-white hover:bg-white/30 transition-colors"
+                  style={{ border: "3px solid rgba(255,255,255,0.3)" }}
+                >
+                  <X className="w-7 h-7" />
+                </button>
+
+                {/* 提示文字 */}
+                <div className="text-center mb-6 px-4">
+                  {isInAppBrowser() ? (
+                    <>
+                      <p className="text-white text-xl font-bold mb-2">请先在浏览器中打开</p>
+                      <p className="text-white/80 text-base">{getInAppBrowserHint()}</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-white text-xl font-bold mb-2">长按图片保存到相册</p>
+                      <p className="text-white/60 text-sm">iOS：长按图片 → 选择"存储图像"</p>
+                      <p className="text-white/60 text-sm">安卓：长按图片 → 选择"保存图片"</p>
+                    </>
+                  )}
+                </div>
+
+                {/* 图片预览 */}
+                <div className="max-w-full max-h-[65vh] overflow-auto bg-white p-3" style={{ border: "4px solid #2D2A26", boxShadow: "6px 6px 0 rgba(0,0,0,0.3)" }}>
+                  <img
+                    src={downloadImage}
+                    alt="拼豆图纸"
+                    className="max-w-full max-h-[60vh] object-contain"
+                    style={{ imageRendering: "pixelated", touchAction: "manipulation" }}
+                    draggable={false}
+                  />
+                </div>
+
+                {/* 底部提示 */}
+                <div className="mt-6 text-center">
+                  <p className="text-white/50 text-xs">图纸已嵌入识别标识，可被本工具重新导入</p>
+                </div>
               </div>
             )}
 

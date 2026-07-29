@@ -773,12 +773,13 @@ export function generatePatternImage(
   return canvas.toDataURL("image/png");
 }
 
-// 下载图纸图片（嵌入元数据）
-export async function downloadPatternImage(
+// 准备图纸图片（嵌入元数据）
+// 返回图片 data URL，由调用方决定如何展示（预览/下载/分享）
+export async function preparePatternImage(
   pattern: PerlerPattern,
   cellSize: number = 20,
   showColorCode: boolean = true
-): Promise<void> {
+): Promise<string> {
   const dataURL = generatePatternImage(pattern, cellSize, showColorCode);
 
   // 创建元数据（只存储色号序列）
@@ -796,49 +797,27 @@ export async function downloadPatternImage(
   // 嵌入元数据到 PNG
   const pngWithMetadata = await embedMetadataToPNG(dataURL, metadata);
 
-  const filename = `perler-pattern-${pattern.width}x${pattern.height}.png`;
+  return pngWithMetadata;
+}
 
-  // 1. 检测内嵌浏览器（微信/Telegram 等）
-  const userAgent = typeof navigator !== "undefined" ? navigator.userAgent : "";
-  const isWeChat = /MicroMessenger/i.test(userAgent);
-  const isTelegram = /Telegram/i.test(userAgent);
+// 检测是否在微信/Telegram 等内嵌浏览器中
+export function isInAppBrowser(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const userAgent = navigator.userAgent;
+  return /MicroMessenger/i.test(userAgent) || /Telegram/i.test(userAgent);
+}
 
-  if (isWeChat || isTelegram) {
-    // 内嵌浏览器无法直接下载，提示用户去系统浏览器打开
-    alert("请点击右上角「···」，选择「在浏览器中打开」后下载");
-    return;
+// 获取内嵌浏览器的提示文案
+export function getInAppBrowserHint(): string {
+  if (typeof navigator === "undefined") return "";
+  const userAgent = navigator.userAgent;
+  if (/MicroMessenger/i.test(userAgent)) {
+    return "请点击右上角「···」，选择「在浏览器中打开」后长按图片保存";
   }
-
-  // 2. 优先使用 Web Share API（移动端可保存到相册）
-  if (typeof navigator !== "undefined" && navigator.share && navigator.canShare) {
-    try {
-      const response = await fetch(pngWithMetadata);
-      const blob = await response.blob();
-      const file = new File([blob], filename, { type: "image/png" });
-
-      if (navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file], title: "拼豆图纸" });
-        return; // 成功，用户已选择保存
-      }
-    } catch (err) {
-      console.log("Share failed, trying fallback:", err);
-    }
+  if (/Telegram/i.test(userAgent)) {
+    return "请点击右上角「···」，选择「在浏览器中打开」后长按图片保存";
   }
-
-  // 3. 降级方案：使用 data URL + window.open（用户长按保存）
-  // 注意：使用 data URL 而不是 Blob URL，因为某些安卓浏览器不支持 Blob URL
-  try {
-    window.open(pngWithMetadata, "_blank");
-    return;
-  } catch (err) {
-    console.log("window.open failed, trying direct download:", err);
-  }
-
-  // 4. 最后降级：使用 download 属性（PC 端或旧浏览器）
-  const link = document.createElement("a");
-  link.download = filename;
-  link.href = pngWithMetadata;
-  link.click();
+  return "";
 }
 
 // 导出色号清单 CSV

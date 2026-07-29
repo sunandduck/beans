@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { X, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { MARD_221_PALETTE } from '../lib/perler-engine-simple';
 
 interface BeadModeProps {
   metadata: {
@@ -49,49 +50,10 @@ export default function BeadMode({ metadata, onClose }: BeadModeProps) {
     setColorStats(stats);
   }, [beads]);
 
-  // 获取色号颜色
+  // 获取色号颜色（使用 MARD 色卡）
   const getColorByCode = (code: string): string => {
-    const colorMap: Record<string, string> = {
-      'H2': '#FFFFFF',
-      'H7': '#1a1a1a',
-      'H16': '#000000',
-      'A1': '#F5D5C8',
-      'E12': '#F4C2C2',
-      'E15': '#FFB6C1',
-      'F1': '#FF6B6B',
-      'F4': '#FF4444',
-      'F7': '#FF8C00',
-      'F8': '#FFA500',
-      'F15': '#FFD700',
-      'F16': '#FFFF00',
-      'F17': '#FFDAB9',
-      'F20': '#FFE4B5',
-      'F22': '#FFC0CB',
-      'F24': '#FFB6C1',
-      'F27': '#FF69B4',
-      'F28': '#FF1493',
-      'G3': '#90EE90',
-      'G4': '#98FB98',
-      'G8': '#00FA9A',
-      'G13': '#20B2AA',
-      'G14': '#48D1CC',
-      'G16': '#00CED1',
-      'G17': '#4682B4',
-      'H3': '#808080',
-      'H4': '#696969',
-      'H5': '#A9A9A9',
-      'H6': '#C0C0C0',
-      'H8': '#D3D3D3',
-      'H9': '#DCDCDC',
-      'H15': '#B0C4DE',
-      'H22': '#ADD8E6',
-      'M8': '#DDA0DD',
-      'M9': '#DA70D6',
-      'M13': '#BA55D3',
-      'M14': '#9370DB',
-      'M15': '#8A2BE2',
-    };
-    return colorMap[code] || '#CCCCCC';
+    const color = MARD_221_PALETTE.find(c => c.code === code);
+    return color?.hex || '#CCCCCC';
   };
 
   // 绘制画布

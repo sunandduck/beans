@@ -1,7 +1,10 @@
 /**
  * PNG 元数据处理工具
  * 用于在 PNG 图片的 tEXt 块中嵌入和读取拼豆图纸元数据
+ * 使用 gzip 压缩减少元数据大小，支持最大 150×150 图纸
  */
+
+import pako from "pako";
 
 // 元数据键名
 const METADATA_KEY = "PerlerBeadData";
@@ -38,19 +41,43 @@ export interface PerlerMetadata {
 
 /**
  * 将元数据压缩为字符串
+ * 使用 gzip 压缩 + base64 编码，大幅减少元数据大小
  */
 function compressMetadata(metadata: PerlerMetadata): string {
-  // 使用 JSON 序列化，然后 base64 编码
   const json = JSON.stringify(metadata);
-  return btoa(unescape(encodeURIComponent(json)));
+  // 使用 gzip 压缩
+  const compressed = pako.deflate(json);
+  // 转换为 base64
+  let binary = "";
+  for (let i = 0; i < compressed.length; i++) {
+    binary += String.fromCharCode(compressed[i]);
+  }
+  return btoa(binary);
 }
 
 /**
  * 从字符串解压元数据
+ * 支持 gzip 压缩和未压缩两种格式（向后兼容）
  */
 function decompressMetadata(data: string): PerlerMetadata {
-  const json = decodeURIComponent(escape(atob(data)));
-  return JSON.parse(json);
+  try {
+    // 尝试 gzip 解压
+    const binary = atob(data);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    const json = pako.inflate(bytes, { to: "string" });
+    return JSON.parse(json);
+  } catch {
+    // 如果解压失败，尝试直接解析（向后兼容旧格式）
+    try {
+      const json = decodeURIComponent(escape(atob(data)));
+      return JSON.parse(json);
+    } catch {
+      throw new Error("元数据解析失败，请确认图纸是由本工具生成的");
+    }
+  }
 }
 
 /**

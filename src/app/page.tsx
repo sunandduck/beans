@@ -237,7 +237,7 @@ export default function Home() {
 
         if (!metadata) {
           console.log("[Import] 元数据为空，不是本工具生成的图纸");
-          setError("这不是本工具生成的图纸，无法导入");
+          setError("非本工具生成的图纸或图纸被其他工具修改，请在本工具下载图纸并原封不动的导入");
           return;
         }
 

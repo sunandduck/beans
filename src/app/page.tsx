@@ -19,7 +19,6 @@ import {
   renderPattern,
   generatePatternImage,
   downloadPatternImage,
-  downloadColorList,
   MARD_221_PALETTE,
   type PerlerPattern,
   type MardColor,
@@ -402,7 +401,7 @@ export default function Home() {
                 {[
                   { icon: ImageIcon, color: "#E8734A", bg: "#E8734A", title: "上传照片", desc: "上传包含人物或物体的照片" },
                   { icon: Wand2, color: "#7BC8B0", bg: "#7BC8B0", title: "AI重构", desc: "AI识别主体并重新设计成像素画" },
-                  { icon: Palette, color: "#6BA3D6", bg: "#6BA3D6", title: "生成图纸", desc: "转换为拼豆图纸，附色号清单" },
+                  { icon: Palette, color: "#6BA3D6", bg: "#6BA3D6", title: "生成图纸", desc: "转换为拼豆图纸，含色号说明" },
                 ].map((item, i) => (
                   <div key={i} className="flex items-start gap-3">
                     <div
@@ -708,19 +707,11 @@ export default function Home() {
                     onClick={async () => {
                       await downloadPatternImage(displayPattern);
                     }}
-                    className="pixel-btn flex-1 py-3 bg-[#E8734A] hover:bg-[#D4623B] text-white font-bold flex items-center justify-center gap-2"
+                    className="pixel-btn w-full py-3 bg-[#E8734A] hover:bg-[#D4623B] text-white font-bold flex items-center justify-center gap-2"
                     style={{ borderWidth: 3, borderColor: "#2D2A26", boxShadow: "4px 4px 0 #2D2A26" }}
                   >
                     <Download className="w-5 h-5" />
                     <span className="font-cute text-lg">下载图纸</span>
-                  </button>
-                  <button
-                    onClick={() => downloadColorList(displayPattern)}
-                    className="pixel-btn flex-1 py-3 bg-[#9B8EC7] hover:bg-[#8A7DB6] text-white font-bold flex items-center justify-center gap-2"
-                    style={{ borderWidth: 3, borderColor: "#2D2A26", boxShadow: "4px 4px 0 #2D2A26" }}
-                  >
-                    <Download className="w-5 h-5" />
-                    <span className="font-cute text-lg">色号清单</span>
                   </button>
                 </div>
               </div>

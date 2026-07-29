@@ -29,12 +29,13 @@ function crc32(data: Uint8Array): number {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
-// 元数据结构
+// 元数据结构（使用数字索引优化）
 export interface PerlerMetadata {
   version: string; // 版本号
   width: number; // 图纸宽度（像素格数）
   height: number; // 图纸高度（像素格数）
-  beads: string[]; // 色号序列（按行优先顺序，长度 = width * height）
+  colorMap: string[]; // 色号映射表（索引 → 色号）
+  beads: number[]; // 色号索引序列（按行优先顺序，长度 = width * height）
 }
 
 /**
@@ -53,7 +54,36 @@ function compressMetadata(metadata: PerlerMetadata): string {
 function decompressMetadata(data: string): PerlerMetadata {
   try {
     const json = decodeURIComponent(escape(atob(data)));
-    return JSON.parse(json);
+    const raw = JSON.parse(json);
+
+    // 向后兼容：如果是旧格式（beads 是字符串数组），转换为新格式
+    if (raw.beads && typeof raw.beads[0] === "string") {
+      const colorMap: string[] = [];
+      const colorIndexMap = new Map<string, number>();
+
+      for (const color of raw.beads) {
+        if (color && !colorIndexMap.has(color)) {
+          colorIndexMap.set(color, colorMap.length);
+          colorMap.push(color);
+        }
+      }
+
+      const beadIndices: number[] = raw.beads.map((color: string) => {
+        if (!color) return -1;
+        return colorIndexMap.get(color) ?? -1;
+      });
+
+      return {
+        version: raw.version || "1.0",
+        width: raw.width,
+        height: raw.height,
+        colorMap,
+        beads: beadIndices,
+      };
+    }
+
+    // 新格式：beads 是数字数组，colorMap 是色号映射表
+    return raw;
   } catch {
     throw new Error("元数据解析失败，请确认图纸是由本工具生成的");
   }
@@ -231,9 +261,24 @@ export async function extractMetadataFromPNG(
               // 找到元数据，解压
               const metadataString = new TextDecoder().decode(chunkText);
               console.log("[Extract] 解压前字符串长度:", metadataString.length);
-              const result = decompressMetadata(metadataString);
-              console.log("[Extract] 解压结果:", result);
-              return result;
+              const raw = decompressMetadata(metadataString);
+              console.log("[Extract] 解压结果:", raw);
+
+              // 将数字索引转换回色号字符串
+              if (raw.colorMap && Array.isArray(raw.beads) && typeof raw.beads[0] === "number") {
+                const beads: string[] = raw.beads.map((index: number) => {
+                  if (index < 0 || index >= raw.colorMap.length) return "";
+                  return raw.colorMap[index];
+                });
+                return {
+                  version: raw.version,
+                  width: raw.width,
+                  height: raw.height,
+                  beads,
+                };
+              }
+
+              return raw;
             }
           }
         }
@@ -251,18 +296,39 @@ export async function extractMetadataFromPNG(
 }
 
 /**
- * 创建拼豆图纸元数据
+ * 创建拼豆图纸元数据（使用数字索引优化）
+ * @param width 图纸宽度
+ * @param height 图纸高度
+ * @param beads 色号字符串数组
  */
 export function createPerlerMetadata(
   width: number,
   height: number,
   beads: string[]
 ): PerlerMetadata {
+  // 创建色号映射表（去重）
+  const colorMap: string[] = [];
+  const colorIndexMap = new Map<string, number>();
+
+  for (const color of beads) {
+    if (color && !colorIndexMap.has(color)) {
+      colorIndexMap.set(color, colorMap.length);
+      colorMap.push(color);
+    }
+  }
+
+  // 将色号字符串转换为数字索引
+  const beadIndices: number[] = beads.map(color => {
+    if (!color) return -1; // 透明/无色
+    return colorIndexMap.get(color) ?? -1;
+  });
+
   return {
     version: "1.0",
     width,
     height,
-    beads,
+    colorMap,
+    beads: beadIndices,
   };
 }
 

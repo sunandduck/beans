@@ -53,6 +53,97 @@ function loadImage(url: string): Promise<HTMLImageElement> {
 
 // 使用导入的 findNearestColor
 
+// ===== CIEDE2000 感知色差，替代原 RGB 欧氏距离 =====
+// RGB -> LAB 转换
+export function rgbToLab(r: number, g: number, b: number): { L: number; A: number; B: number } {
+  r /= 255; g /= 255; b /= 255;
+  r = r > 0.04045 ? Math.pow((r + 0.055) / 1.055, 2.4) : r / 12.92;
+  g = g > 0.04045 ? Math.pow((g + 0.055) / 1.055, 2.4) : g / 12.92;
+  b = b > 0.04045 ? Math.pow((b + 0.055) / 1.055, 2.4) : b / 12.92;
+  let x = (r * 0.4124 + g * 0.3576 + b * 0.1805) / 0.95047;
+  let y = (r * 0.2126 + g * 0.7152 + b * 0.0722) / 1.00000;
+  let z = (r * 0.0193 + g * 0.1192 + b * 0.9505) / 1.08883;
+  const f = (t: number) => t > 0.008856 ? Math.cbrt(t) : (7.787 * t + 16 / 116);
+  const fx = f(x), fy = f(y), fz = f(z);
+  return { L: 116 * fy - 16, A: 500 * (fx - fy), B: 200 * (fy - fz) };
+}
+
+// LAB -> RGB 转换
+export function labToRgb(L: number, A: number, B: number): [number, number, number] {
+  let y = (L + 16) / 116;
+  let x = A / 500 + y;
+  let z = y - B / 200;
+  const f = (p: number) => { const p3 = p * p * p; return p3 > 0.008856 ? p3 : (p - 16 / 116) / 7.787; };
+  x = f(x) * 0.95047; y = f(y) * 1.0; z = f(z) * 1.08883;
+  let r = 3.2404542 * x - 1.5371385 * y - 0.4985314 * z;
+  let g = -0.9692660 * x + 1.8760108 * y + 0.0415560 * z;
+  let bb = 0.0556434 * x - 0.2040259 * y + 1.0572252 * z;
+  const g2 = (c: number) => c > 0.0031308 ? 1.055 * Math.pow(c, 1/2.4) - 0.055 : 12.92 * c;
+  r = g2(r); g = g2(g); bb = g2(bb);
+  const cl = (v: number) => Math.max(0, Math.min(255, Math.round(v * 255)));
+  return [cl(r), cl(g), cl(bb)];
+}
+
+// CIEDE2000 色差计算
+export function deltaE2000(l1: number, a1: number, b1: number, l2: number, a2: number, b2: number): number {
+  const C1 = Math.sqrt(a1 * a1 + b1 * b1), C2 = Math.sqrt(a2 * a2 + b2 * b2);
+  const Cbar = (C1 + C2) / 2;
+  const Cbar7 = Math.pow(Cbar, 7);
+  const G = 0.5 * (1 - Math.sqrt(Cbar7 / (Cbar7 + Math.pow(25, 7))));
+  const a1p = a1 * (1 + G), a2p = a2 * (1 + G);
+  const C1p = Math.sqrt(a1p * a1p + b1 * b1), C2p = Math.sqrt(a2p * a2p + b2 * b2);
+  const h1p = (Math.atan2(b1, a1p) * 180 / Math.PI + 360) % 360;
+  const h2p = (Math.atan2(b2, a2p) * 180 / Math.PI + 360) % 360;
+  const dLp = l2 - l1, dCp = C2p - C1p;
+  let dhp: number;
+  if (C1p * C2p === 0) dhp = 0;
+  else {
+    const diff = h2p - h1p;
+    dhp = Math.abs(diff) <= 180 ? diff : (diff > 180 ? diff - 360 : diff + 360);
+  }
+  const dHp = 2 * Math.sqrt(C1p * C2p) * Math.sin(dhp / 2 * Math.PI / 180);
+  const Lbarp = (l1 + l2) / 2, Cbarp = (C1p + C2p) / 2;
+  let hpbar = (C1p * C2p === 0) ? h1p + h2p
+    : (Math.abs(h1p - h2p) <= 180) ? (h1p + h2p) / 2
+    : (h1p + h2p < 360) ? (h1p + h2p + 360) / 2 : (h1p + h2p - 360) / 2;
+  const T = 1 - 0.17 * Math.cos((hpbar - 30) * Math.PI / 180)
+    + 0.24 * Math.cos(2 * hpbar * Math.PI / 180)
+    + 0.32 * Math.cos((3 * hpbar + 6) * Math.PI / 180)
+    - 0.20 * Math.cos((4 * hpbar - 63) * Math.PI / 180);
+  const dTheta = 30 * Math.exp(-Math.pow((hpbar - 275) / 25, 2));
+  const Cbarp7 = Math.pow(Cbarp, 7);
+  const Rc = 2 * Math.sqrt(Cbarp7 / (Cbarp7 + Math.pow(25, 7)));
+  const SL = 1 + (0.015 * (Lbarp - 50) * (Lbarp - 50)) / Math.sqrt(20 + (Lbarp - 50) * (Lbarp - 50));
+  const SC = 1 + 0.045 * Cbarp;
+  const SH = 1 + 0.015 * Cbarp * T;
+  const RT = -Math.sin(2 * dTheta * Math.PI / 180) * Rc;
+  return Math.sqrt(
+    (dLp / SL) ** 2 + (dCp / SC) ** 2 + (dHp / SH) ** 2
+    + RT * (dCp / SC) * (dHp / SH)
+  );
+}
+
+// deltaE00: RGB 直接计算色差
+export function deltaE00(r1: number, g1: number, b1: number, r2: number, g2: number, b2: number): number {
+  const c1 = rgbToLab(r1, g1, b1), c2 = rgbToLab(r2, g2, b2);
+  return deltaE2000(c1.L, c1.A, c1.B, c2.L, c2.A, c2.B);
+}
+
+// 使用 deltaE00 找最近 MARD 颜色（替代欧氏距离）
+export function nearestMard(r: number, g: number, b: number): MardColor {
+  let best: MardColor = MARD_221_PALETTE[0];
+  let bestDist = Infinity;
+  for (const c of MARD_221_PALETTE) {
+    const hex = c.hex;
+    const cr = parseInt(hex.slice(1, 3), 16);
+    const cg = parseInt(hex.slice(3, 5), 16);
+    const cb = parseInt(hex.slice(5, 7), 16);
+    const d = deltaE00(r, g, b, cr, cg, cb);
+    if (d < bestDist) { bestDist = d; best = c; }
+  }
+  return best;
+}
+
 // 颜色量化：将 RGB 值四舍五入到最近的量化级别
 // 这样相近的颜色会被归为同一类，方便统计众数
 function quantizeColor(r: number, g: number, b: number, levels: number = 8): string {
@@ -398,8 +489,8 @@ function processWithPooling(
         continue;
       }
 
-      // 匹配到最近的 MARD 色
-      const color = findNearestColorFromPalette(dominant.r, dominant.g, dominant.b, MARD_221_PALETTE);
+      // 匹配到最近的 MARD 色（使用 deltaE00 感知色差）
+      const color = nearestMard(dominant.r, dominant.g, dominant.b);
       beads.push({ row: py, col: px, color, isEmpty: false });
 
       const code = color.code;
@@ -596,7 +687,7 @@ function processWithDithering(
         continue;
       }
 
-      const color = findNearestColorFromPalette(pixel.r, pixel.g, pixel.b, MARD_221_PALETTE);
+      const color = nearestMard(pixel.r, pixel.g, pixel.b);
       beads.push({ row: py, col: px, color, isEmpty: false });
 
       const code = color.code;

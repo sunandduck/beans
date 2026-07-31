@@ -340,9 +340,9 @@ export async function processImage(
 
   // 第四步：根据模式处理
   if (useDithering) {
-    // 抖动模式：缩小到网格尺寸 → Floyd-Steinberg 抖动 → 后处理
+    // 抖动模式：网格主色采样 → Floyd-Steinberg 抖动 → 后处理
     return processWithDithering(
-      data, srcWidth, srcHeight,
+      img,
       cropMinX, cropMinY, cropWidth, cropHeight,
       gridWidth, gridHeight,
       backgroundMap, preserveTransparency
@@ -421,11 +421,128 @@ function processWithPooling(
   };
 }
 
+// 网格主色采样（最近邻 + 众数/均值）
+// 替代原来的中心点采样，减少杂色和模糊
+function sampleCellDominantColors(
+  img: HTMLImageElement,
+  cropMinX: number,
+  cropMinY: number,
+  cropWidth: number,
+  cropHeight: number,
+  gridWidth: number,
+  gridHeight: number,
+  samplesPerCell: number = 3,
+  protectDarkFeatures: boolean = true
+): { pixels: Array<{ r: number; g: number; b: number; a: number }>; darkMask: boolean[] } {
+  // 使用 canvas 最近邻插值缩放
+  const sampleW = gridWidth * samplesPerCell;
+  const sampleH = gridHeight * samplesPerCell;
+  const canvas = document.createElement("canvas");
+  canvas.width = sampleW;
+  canvas.height = sampleH;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+  ctx.imageSmoothingEnabled = false; // 最近邻采样，不产生中间色
+  ctx.drawImage(img, cropMinX, cropMinY, cropWidth, cropHeight, 0, 0, sampleW, sampleH);
+  const src = ctx.getImageData(0, 0, sampleW, sampleH).data;
+
+  const pixels: Array<{ r: number; g: number; b: number; a: number }> = [];
+  const darkMask: boolean[] = [];
+  const DARK_LUM = 50; // 深色特征亮度阈值
+
+  for (let y = 0; y < gridHeight; y++) {
+    for (let x = 0; x < gridWidth; x++) {
+      // 统计块内每种颜色出现次数，取众数
+      const samples: Array<{ r: number; g: number; b: number; a: number; c: number }> = [];
+      let modeR = 0, modeG = 0, modeB = 0, modeA = 255, modeCnt = 0;
+      let hasOpaque = false;
+      let opaqueCnt = 0;
+      let sumR = 0, sumG = 0, sumB = 0;
+
+      for (let dy = 0; dy < samplesPerCell; dy++) {
+        for (let dx = 0; dx < samplesPerCell; dx++) {
+          const si = ((y * samplesPerCell + dy) * sampleW + (x * samplesPerCell + dx)) * 4;
+          const r = src[si], g = src[si + 1], b = src[si + 2], a = src[si + 3];
+          if (a < 128) continue; // 跳过透明像素
+          hasOpaque = true;
+          opaqueCnt++;
+          sumR += r; sumG += g; sumB += b;
+
+          // 查找是否已有相同颜色
+          let found = false;
+          for (const s of samples) {
+            if (s.r === r && s.g === g && s.b === b && s.a === a) {
+              s.c++;
+              if (s.c > modeCnt) {
+                modeCnt = s.c; modeR = r; modeG = g; modeB = b; modeA = a;
+              }
+              found = true;
+              break;
+            }
+          }
+          if (!found) {
+            samples.push({ r, g, b, a, c: 1 });
+            if (modeCnt === 0) { modeCnt = 1; modeR = r; modeG = g; modeB = b; modeA = a; }
+          }
+        }
+      }
+
+      // 全透明块
+      if (!hasOpaque) {
+        pixels.push({ r: 0, g: 0, b: 0, a: 0 });
+        darkMask.push(false);
+        continue;
+      }
+
+      // 计算均值
+      const meanR = Math.round(sumR / opaqueCnt);
+      const meanG = Math.round(sumG / opaqueCnt);
+      const meanB = Math.round(sumB / opaqueCnt);
+
+      // 某颜色占绝对多数（>=50%）时用众数，否则用均值
+      const useMode = modeCnt >= Math.ceil(opaqueCnt * 0.5);
+      let repR = useMode ? modeR : meanR;
+      let repG = useMode ? modeG : meanG;
+      let repB = useMode ? modeB : meanB;
+      let repA = modeA;
+
+      // 深色小特征保护：检测块内是否有深色像素（眼睛、嘴巴等）
+      if (protectDarkFeatures) {
+        let darkSumR = 0, darkSumG = 0, darkSumB = 0, darkCnt = 0;
+        for (const sample of samples) {
+          const lum = 0.299 * sample.r + 0.587 * sample.g + 0.114 * sample.b;
+          if (lum < DARK_LUM) {
+            darkSumR += sample.r * sample.c;
+            darkSumG += sample.g * sample.c;
+            darkSumB += sample.b * sample.c;
+            darkCnt += sample.c;
+          }
+        }
+
+        // 如果深色像素占一定比例，使用深色均值（保护眼睛、嘴巴等特征）
+        const totalSamples = samplesPerCell * samplesPerCell;
+        const darkNeeded = opaqueCnt === totalSamples ? 2 : Math.max(2, Math.ceil(opaqueCnt * 0.3));
+        if (darkCnt >= darkNeeded) {
+          repR = Math.round(darkSumR / darkCnt);
+          repG = Math.round(darkSumG / darkCnt);
+          repB = Math.round(darkSumB / darkCnt);
+          darkMask.push(true);
+        } else {
+          darkMask.push(false);
+        }
+      } else {
+        darkMask.push(false);
+      }
+
+      pixels.push({ r: repR, g: repG, b: repB, a: repA });
+    }
+  }
+
+  return { pixels, darkMask };
+}
+
 // 抖动模式：Floyd-Steinberg + 后处理
 function processWithDithering(
-  data: Uint8ClampedArray,
-  srcWidth: number,
-  srcHeight: number,
+  img: HTMLImageElement,
   cropMinX: number,
   cropMinY: number,
   cropWidth: number,
@@ -435,31 +552,24 @@ function processWithDithering(
   backgroundMap: boolean[],
   preserveTransparency: boolean
 ): PerlerPattern {
-  // 1. 缩小到网格尺寸（最近邻插值）+ 同步采样背景映射
-  const pixels: Array<{ r: number; g: number; b: number; a: number }> = [];
+  // 1. 网格主色采样（最近邻 + 众数/均值 + 深色特征保护）
+  const { pixels, darkMask } = sampleCellDominantColors(
+    img, cropMinX, cropMinY, cropWidth, cropHeight,
+    gridWidth, gridHeight, 3, true
+  );
+
+  // 同步采样背景映射
   const gridBackgroundMap: boolean[] = [];
   const blockSizeX = cropWidth / gridWidth;
   const blockSizeY = cropHeight / gridHeight;
-
   for (let py = 0; py < gridHeight; py++) {
     for (let px = 0; px < gridWidth; px++) {
       const sampleX = cropMinX + Math.floor(px * blockSizeX + blockSizeX / 2);
       const sampleY = cropMinY + Math.floor(py * blockSizeY + blockSizeY / 2);
-
-      // 边界保护
-      const clampedX = Math.max(0, Math.min(srcWidth - 1, sampleX));
-      const clampedY = Math.max(0, Math.min(srcHeight - 1, sampleY));
-
-      const idx = clampedY * srcWidth + clampedX;
-      const i = idx * 4;
-      pixels.push({
-        r: data[i],
-        g: data[i + 1],
-        b: data[i + 2],
-        a: data[i + 3],
-      });
-      // 同步采样背景映射
-      gridBackgroundMap.push(backgroundMap[idx]);
+      const clampedX = Math.max(0, Math.min(cropWidth - 1, sampleX - cropMinX));
+      const clampedY = Math.max(0, Math.min(cropHeight - 1, sampleY - cropMinY));
+      const idx = clampedY * cropWidth + clampedX;
+      gridBackgroundMap.push(backgroundMap[idx] || false);
     }
   }
 
